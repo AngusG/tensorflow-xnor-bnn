@@ -7,4 +7,4 @@ struct ExampleFunctor {
   void operator()(const Device& d, int size, const T* in, T* out);
 };
 
-#endif KERNEL_EXAMPLE_H_
+#endif // KERNEL_EXAMPLE_H_

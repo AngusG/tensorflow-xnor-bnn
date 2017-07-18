@@ -20,7 +20,7 @@ template <typename T>
 // http://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#shared-memory
 
 // A is shape (m,n), B is shape (n,k) and C is shape (m,k)
-__global__ void xnor_gemm(unsigned int* A, unsigned int* B, float* C, int m, int n, int k) {
+__global__ void xnor_gemm(const int* A, const int* B, float* C, const int m, const int n, const int k) {
 //__global__ void xnor_gemm(unsigned int* A, unsigned int* B, float* C, const T* m, const T* n, const T* k) {
     
     // Block row and column
@@ -35,13 +35,13 @@ __global__ void xnor_gemm(unsigned int* A, unsigned int* B, float* C, int m, int
     float* Csub = &C[BLOCK_SIZE * k * blockRow + BLOCK_SIZE * blockCol];
 
     // Shared memory used to store Asub and Bsub respectively
-    __shared__ unsigned int As[BLOCK_SIZE][BLOCK_SIZE];
-    __shared__ unsigned int Bs[BLOCK_SIZE][BLOCK_SIZE];
+    __shared__ int As[BLOCK_SIZE][BLOCK_SIZE];
+    __shared__ int Bs[BLOCK_SIZE][BLOCK_SIZE];
     
     // Each thread computes one element of Csub
     // by accumulating results into Cvalue
     // block_size = 16 -> 256 threads, one per Csub element
-    unsigned int Cvalue = 0;
+    int Cvalue = 0;
     
     // Loop over all the sub-matrices of A and B that are
     // required to compute Csub
@@ -50,10 +50,10 @@ __global__ void xnor_gemm(unsigned int* A, unsigned int* B, float* C, int m, int
     for (int i = 0; i < (n / BLOCK_SIZE); ++i) {
     
         // Get sub-matrix Asub of A
-        unsigned int* Asub = &A[BLOCK_SIZE * blockRow * n + BLOCK_SIZE * i];
+        const int* Asub = &A[BLOCK_SIZE * blockRow * n + BLOCK_SIZE * i];
         
         // Get sub-matrix Bsub of B
-        unsigned int* Bsub = &B[BLOCK_SIZE * k * i + BLOCK_SIZE * blockCol];
+        const int* Bsub = &B[BLOCK_SIZE * k * i + BLOCK_SIZE * blockCol];
         
         // Load Asub and Bsub from device memory to shared memory
         // Each thread loads one element of each sub-matrix
@@ -92,7 +92,7 @@ template <typename T>
 struct XnorGemmFunctor<GPUDevice, T> {
 //void operator()(const GPUDevice& d, int size, const T* in, T* out) {
 //void operator()(const GPUDevice& d, const T* A, const T* B, float* C, const T* m, const T* n, const T* k) {
-  void operator()(const GPUDevice& d, unsigned int* A, unsigned int* B, float* C, const int m, const int n, const int k) {
+  void operator()(const GPUDevice& d, const int* A, const int* B, float* C, const int m, const int n, const int k) {
     // Launch the cuda kernel.
     //
     // See core/util/cuda_kernel_helper.h for example of computing

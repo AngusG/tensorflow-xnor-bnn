@@ -15,17 +15,16 @@ using CPUDevice = Eigen::ThreadPoolDevice;
 using GPUDevice = Eigen::GpuDevice;
 
 //TODO: CPU specialization of xnor_gemm computation.
+/*
 template <typename T>
 struct XnorGemmFunctor<CPUDevice, T> {
-  void operator()(const CPUDevice& d, const T* A, const T* B, T* C, const int m, const int n, const int k) {
-    /*
+  void operator()(const CPUDevice& d, const T* A, const T* B, T* C, int m, int n, const uint64 k) {
     for (int i = 0; i < size; ++i) {
       out[i] = 2 * in[i];
-    }*/
   }
 };
-
-//void AddOneKernelLauncher(const int* in, const int N, int* out);
+*/
+//void AddOneKernelLauncher(int* in, int N, int* out);
 
 // A is shape (m,n), B is shape (n,k) and C is shape (m,k)
 //void XnorGemmKernelLauncher(unsigned int* A, unsigned int* B, float* C, int m, int n, int k);
@@ -85,20 +84,20 @@ class XnorGemmOp : public OpKernel {
 
     // Call the cuda kernel launcher
     //XnorGemmKernelLauncher( /* input.data(), N, output.data() */ );
-    int m = a.dim_size(1 - dim_pair[0].first);
-    int n = b.dim_size(1 - dim_pair[0].second);
-    int k = a.dim_size(dim_pair[0].first);
+    /* https://www.tensorflow.org/versions/r1.0/api_docs/cc/class/tensorflow/tensor#dim_size */
+    const int32 m = a.dim_size(1 - dim_pair[0].first);
+    const int32 k = a.dim_size(dim_pair[0].first);
+    const int32 n = b.dim_size(1 - dim_pair[0].second);
 
-    //const T* A, const T* B, T* C, const int m, const int n, const int k)
-    
+    // Signature (const T* A, const T* B, T* C, int m, int n, int k)
     XnorGemmFunctor<Device, T>()(
     ctx->eigen_device<Device>(),
     a.flat<T>().data(),
     b.flat<T>().data(),
     out->flat<float>().data(),
-    static_cast<int>(m),
-    static_cast<int>(n),
-    static_cast<int>(k));
+    m, //static_cast<int>(m),
+    n, //static_cast<int>(n),
+    k);
 
     /*
     XnorGemmFunctor<Device, T>()(

@@ -95,8 +95,9 @@ struct XnorGemmFunctor<GPUDevice, T> {
     //
     // See core/util/cuda_kernel_helper.h for example of computing
     // block count and thread_per_block count.
-    int block_count = 1024;
-    int thread_per_block = 20;
+    printf("\n\nInt32 input -- using XnorGemmFunctor\n\n");
+    int block_count = BLOCK_SIZE;
+    int thread_per_block = 512;
     xnor_gemm<T>
         <<<block_count, thread_per_block, 0, d.stream()>>>(A, B, C, m, n, k);
   }

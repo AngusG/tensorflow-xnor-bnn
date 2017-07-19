@@ -84,10 +84,15 @@ struct BaseGemmFunctor<GPUDevice, T> {
     //
     // See core/util/cuda_kernel_helper.h for example of computing
     // block count and thread_per_block count.
-    int block_count = 1024;
-    int thread_per_block = 20;
+    printf("\n\nFloat input -- using BaseGemmFunctor\n\n");
+    //int block_count = BLOCK_SIZE;
+    //int thread_per_block = 512;
+    //base_gemm<T>
+    //    <<<block_count, thread_per_block, 0, d.stream()>>>(A, B, C, m, n, k);
+    dim3 blockDim(BLOCK_SIZE, BLOCK_SIZE);
+    dim3 gridDim(m / BLOCK_SIZE + 1, m / BLOCK_SIZE + 1);
     base_gemm<T>
-        <<<block_count, thread_per_block, 0, d.stream()>>>(A, B, C, m, n, k);
+        <<<gridDim, blockDim, 0, d.stream()>>>(A, B, C, m, n, k);
   }
 };
 

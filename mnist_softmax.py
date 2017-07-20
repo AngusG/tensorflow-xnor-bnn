@@ -58,19 +58,28 @@ def main(_):
         tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y))
     train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
 
+    correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
     sess = tf.InteractiveSession()
     tf.global_variables_initializer().run()
 
     # Train
-    for _ in range(1000):
+    for step in range(1000):
         batch_xs, batch_ys = mnist.train.next_batch(100)
-        sess.run(train_step, feed_dict={x: batch_xs, y_: batch_ys})
+        __, loss = sess.run([train_step, cross_entropy],
+                            feed_dict={x: batch_xs, y_: batch_ys})
+
+        if step % 100 == 0:
+            # Test trained model
+            test_acc = sess.run(accuracy, feed_dict={x: mnist.test.images,
+                                                     y_: mnist.test.labels})
+            print("step %d, loss = %.4f, test accuracy %.4f" %
+                  (step, loss, test_acc))
 
     # Test trained model
-    correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-    print(sess.run(accuracy, feed_dict={x: mnist.test.images,
-                                        y_: mnist.test.labels}))
+    print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images,
+                                        y_: mnist.test.labels})))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

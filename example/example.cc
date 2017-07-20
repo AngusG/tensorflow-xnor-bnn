@@ -37,6 +37,8 @@ class ExampleOp : public OpKernel {
     // Do the computation.
     OP_REQUIRES(context, input_tensor.NumElements() <= tensorflow::kint32max,
                 errors::InvalidArgument("Too many elements in tensor"));
+
+    /* To do the actual computation, compute function calls a templated functor struct */
     ExampleFunctor<Device, T>()(
         context->eigen_device<Device>(),
         static_cast<int>(input_tensor.NumElements()),

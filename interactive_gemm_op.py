@@ -23,19 +23,21 @@ if __name__ == "__main__":
 	# not working yet
     xnor_result = gemm_module.gemm(a_float, b_float)
     '''
-    a_float = tf.cast(2 * (tf.random_normal(shape=[N,N],seed=1).eval() > 0) - 1, tf.float32)
-    b_float = tf.cast(2 * (tf.random_normal(shape=[N,N],seed=2).eval() > 0) - 1, tf.float32)
+    a_float = tf.cast(2 * (tf.random_normal(shape=[N//4,N],seed=1).eval() > 0) - 1, tf.float32)
+    b_float = tf.cast(2 * (tf.random_normal(shape=[N,N//2],seed=2).eval() > 0) - 1, tf.float32)
 
+    '''
     start_time = time.time()
     base_result = gemm_module.gemm(a_float, b_float)
     base_time = time.time() - start_time
+    '''
 
     start_time = time.time()
     tf_result = tf.matmul(a_float, b_float)
     tf_time = time.time() - start_time
 
-    print(base_result.eval())
+    #print(base_result.eval())
     print(tf_result.eval())
 
-    print("base_gemm took %f" % base_time)
+    #print("base_gemm took %f" % base_time)
     print("tf.matmul() took %f" % tf_time)

@@ -15,10 +15,10 @@ using namespace tensorflow;
 
 #define EIGEN_USE_GPU
 
-template <typename T>
 // CUDA tutorial: http://www.nvidia.com/docs/IO/116711/sc11-cuda-c-basics.pdf
 // http://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#shared-memory
 // A is shape (m,n), B is shape (n,k) and C is shape (m,k)
+template <typename T>
 __global__ void xnor_gemm(const int* A, const int* B, float* C, const int m, const int n, const int k) {
     
     // Block row and column
@@ -88,23 +88,21 @@ void XnorGemmKernelLauncher(unsigned int* A, unsigned int* B, float* C, int m, i
 // Define the GPU implementation that launches the CUDA kernel.
 template <typename T>
 struct XnorGemmFunctor<GPUDevice, T> {
-//void operator()(const GPUDevice& d, int size, const T* in, T* out) {
-//void operator()(const GPUDevice& d, const T* A, const T* B, float* C, const T* m, const T* n, const T* k) {
-  void operator()(const GPUDevice& d, const int* A, const int* B, float* C, const int m, const int n, const int k) {
-    // Launch the cuda kernel.
-    //
-    // See core/util/cuda_kernel_helper.h for example of computing
-    // block count and thread_per_block count.
-    printf("\n\nInt32 input -- using XnorGemmFunctor\n\n");
-    int block_count = BLOCK_SIZE;
-    int thread_per_block = 512;
-    xnor_gemm<T>
-        <<<block_count, thread_per_block, 0, d.stream()>>>(A, B, C, m, n, k);
-  }
+    void operator()(const GPUDevice& d, const int* A, const int* B, float* C, const int m, const int n, const int k) {
+        // Launch the cuda kernel.
+        //
+        // See core/util/cuda_kernel_helper.h for example of computing
+        // block count and thread_per_block count.
+        printf("\n\nInt32 input -- using XnorGemmFunctor\n\n");
+        int block_count = BLOCK_SIZE;
+        int thread_per_block = 512;
+        xnor_gemm<T><<<block_count, thread_per_block, 0, d.stream()>>>(A, B, C, m, n, k);
+    }
 };
 
 // Instantiate functors for the types of OpKernels registered.
 typedef Eigen::GpuDevice GPUDevice;
-template struct XnorGemmFunctor<GPUDevice, int32>;
+template struct XnorGemmFunctor<GPUDevice, float>;
+//template struct XnorGemmFunctor<GPUDevice, int32>;
 
 #endif  // GOOGLE_CUDA

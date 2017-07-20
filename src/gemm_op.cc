@@ -1,7 +1,10 @@
 // gemm_op.cc
 #define EIGEN_USE_THREADS
+
+#include <stdio.h>
 #include "xnor_gemm_kernel.h"
 #include "base_gemm_kernel.h"
+#include "concatenate_kernel.h"
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
 //#include "tensorflow/core/kernels/fill_functor.h"
@@ -81,6 +84,10 @@ class BaseGemmOp : public OpKernel {
     const int32 k = a.dim_size(dim_pair[0].first);
     const int32 n = b.dim_size(1 - dim_pair[0].second);
 
+    printf("m = %d ", m);
+    printf("k = %d ", k);
+    printf("n = %d ", n);
+
     BaseGemmFunctor<Device, T>()(
     ctx->eigen_device<Device>(),
     a.flat<T>().data(), // data is const here, which is why const was added to kernels
@@ -97,6 +104,7 @@ class BaseGemmOp : public OpKernel {
 
 // OpKernel definition.
 // template parameter <T> is the datatype of the tensors.
+//template <typename Device>
 template <typename Device, typename T>
 class XnorGemmOp : public OpKernel {
  public:
@@ -125,10 +133,30 @@ class XnorGemmOp : public OpKernel {
             ", In[1]: ", b.shape().DebugString()));
     int a_dim_remaining = 1 - dim_pair[0].first;
     int b_dim_remaining = 1 - dim_pair[0].second;
+    
     TensorShape out_shape(
         {a.dim_size(a_dim_remaining), b.dim_size(b_dim_remaining)});
     Tensor* out = nullptr;
+
+    /* From: core/framework/op_kernel.h */
+    /* Status allocate_output(int index, const TensorShape& shape,
+                         Tensor** tensor) TF_MUST_USE_RESULT;
+    */
     OP_REQUIRES_OK(ctx, ctx->allocate_output(0, out_shape, &out));
+
+    // Allocates a temporary Tensor of the specified type and shape. The
+    // Tensor must not be used after kernel construction is
+    // complete. See comment above.
+    
+    /*
+    Status allocate_temp(DataType type, const TensorShape& shape,
+                       Tensor* out_temp);
+    */
+
+    Tensor* Aconc = nullptr;
+    Tensor* Bconc = nullptr;
+    OP_REQUIRES_OK(ctx, ctx->allocate_temp(DT_INT32, out_shape, Aconc));
+    OP_REQUIRES_OK(ctx, ctx->allocate_temp(DT_INT32, out_shape, Bconc));
 
     if (out->NumElements() == 0) {
       // If a has shape [0, x] or b has shape [x, 0], the output shape
@@ -155,31 +183,47 @@ class XnorGemmOp : public OpKernel {
     const int32 k = a.dim_size(dim_pair[0].first);
     const int32 n = b.dim_size(1 - dim_pair[0].second);
 
-    // Signature (const T* A, const T* B, T* C, int m, int n, int k)
+    auto a_flat = a.flat<float>().data();
+    auto b_flat = b.flat<float>().data();
+    auto Aconc_flat = Aconc->flat<int32>().data();
+    auto Bconc_flat = Bconc->flat<int32>().data();
+    auto c_flat = out->flat<float>().data();
+
+    #if 0
+    ConcatenateRowsFunctor<Device, T>()(
+    ctx->eigen_device<Device>(),
+    a_flat,
+    Aconc_flat,
+    m);
+    #endif
+    #if 0
+    ConcatenateColsFunctor<Device, T>()(
+    ctx->eigen_device<Device>(),
+    b_flat,
+    Bconc_flat,    
+    m);
+    #endif
+    #if 1
     XnorGemmFunctor<Device, T>()(
     ctx->eigen_device<Device>(),
-    a.flat<T>().data(), // data is const here, which is why const was added to kernels
+    Aconc_flat,
+    Bconc_flat,
+    c_flat,
+    m,
+    n,
+    k);
+    #endif
+
+    #if 0 /* For testing base kernel */
+    XnorGemmFunctor<Device, T>()(
+    ctx->eigen_device<Device>(),
+    a.flat<T>().data(),
     b.flat<T>().data(),
     out->flat<float>().data(),
-    m, //static_cast<int>(m),
-    n, //static_cast<int>(n),
+    m,
+    n,
     k);
-
-    /*
-    XnorGemmFunctor<Device, T>()(
-    ctx->eigen_device<Device>(),
-    static_cast<int>(input_tensor.NumElements()),
-    input_tensor.flat<T>().data(),
-    output_tensor->flat<T>().data());
-    */
-
-
-    /*
-    int block = 64;
-    int grid = N * N / (block * 32)  + 1;
-
-    XnorGemmKernelLauncher(a, b, out, m, n, k);
-    */
+    #endif
   }
   private:
   bool transpose_a_;
@@ -187,9 +231,9 @@ class XnorGemmOp : public OpKernel {
 };
 
 REGISTER_OP("Gemm")
-    .Attr("T: {float, int32} = DT_INT32")
-      .Input("a: T")
-      .Input("b: T")
+    //.Attr("T: {float, int32} = DT_FLOAT")
+      .Input("a: float")
+      .Input("b: float")
       .Output("c: float");
 
 /*
@@ -201,15 +245,25 @@ output: A Tensor.
 )doc");
 */
 
+#if 1
+
+#define REGISTER_GPU(T)                                         \
+    REGISTER_KERNEL_BUILDER(                                    \
+        Name("Gemm").Device(DEVICE_GPU).TypeConstraint<T>("T"), \
+        XnorGemmOp<GPUDevice, T>);
+REGISTER_GPU(float);
+
+#endif
+
+#if 0
 REGISTER_KERNEL_BUILDER(
   Name("Gemm")
   .Device(DEVICE_GPU) 
   .TypeConstraint<int32>("T"),
   XnorGemmOp<GPUDevice, int32>);
-
 REGISTER_KERNEL_BUILDER(
   Name("Gemm")
   .Device(DEVICE_GPU) 
   .TypeConstraint<float>("T"),
   BaseGemmOp<GPUDevice, float>);
-
+#endif

@@ -189,20 +189,22 @@ class XnorGemmOp : public OpKernel {
     auto Bconc_flat = Bconc->flat<int32>().data();
     auto c_flat = out->flat<float>().data();
 
-    #if 0
+    #if 1
     ConcatenateRowsFunctor<Device, T>()(
     ctx->eigen_device<Device>(),
     a_flat,
     Aconc_flat,
     m);
     #endif
-    #if 0
+
+    #if 1
     ConcatenateColsFunctor<Device, T>()(
     ctx->eigen_device<Device>(),
     b_flat,
     Bconc_flat,    
     m);
     #endif
+    
     #if 1
     XnorGemmFunctor<Device, T>()(
     ctx->eigen_device<Device>(),

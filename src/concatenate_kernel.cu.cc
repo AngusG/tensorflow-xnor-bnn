@@ -6,8 +6,10 @@
 #define BLOCK_SIZE 16
 
 #include <stdio.h>
-#include "xnor_gemm_kernel.h"
 #include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
+
+#include "concatenate_kernel.h"
+#include "tensorflow/core/util/cuda_kernel_helper.h"
 
 using namespace tensorflow;
 
@@ -37,7 +39,7 @@ __global__ void concatenate_rows_kernel(const float *a, int *b, const int size)
 }
 
 template <typename T>
-__global__ void concatenate_cols_kernel(float *a, int *b, int m, int n)
+__global__ void concatenate_cols_kernel(const float *a, int *b, const int m, const int n)
 {   
 
     int j = blockIdx.x * blockDim.x + threadIdx.x;
@@ -90,7 +92,7 @@ struct ConcatenateRowsFunctor<GPUDevice, T> {
 
 template <typename T>
 struct ConcatenateColsFunctor<GPUDevice, T> {
-    void operator()(const Device& d, const float* fB, int* Bconc, const int N) {
+    void operator()(const GPUDevice& d, const float* fB, int* Bconc, const int N) {
         printf("\n\nConcatenateColsFunctor\n\n");
         int block = BLOCK_SIZE * 4;
         int grid = N / block + 1;

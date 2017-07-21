@@ -1,4 +1,5 @@
 // gemm_op.cc
+//#define DEBUG
 #define EIGEN_USE_THREADS
 
 #include <stdio.h>
@@ -152,15 +153,18 @@ class XnorGemmOp : public OpKernel {
     Status allocate_temp(DataType type, const TensorShape& shape,
                        Tensor* out_temp);
     */
-
+    #ifdef DEBUG
     printf("\n\nXnorGemmOp -- allocated output\n\n");
+    #endif
 
     Tensor Aconc;// = nullptr;
     Tensor Bconc;// = nullptr;
     OP_REQUIRES_OK(ctx, ctx->allocate_temp(DT_INT32, out_shape, &Aconc));
     OP_REQUIRES_OK(ctx, ctx->allocate_temp(DT_INT32, out_shape, &Bconc));
 
+    #ifdef DEBUG
     printf("\n\nXnorGemmOp -- allocated temp\n\n");
+    #endif
 
     if (out->NumElements() == 0) {
       // If a has shape [0, x] or b has shape [x, 0], the output shape
@@ -187,7 +191,9 @@ class XnorGemmOp : public OpKernel {
     const int32 k = a.dim_size(dim_pair[0].first);
     const int32 n = b.dim_size(1 - dim_pair[0].second);
 
+    #ifdef DEBUG
     printf("\n\nXnorGemmOp -- created m,n,k\n\n");
+    #endif
 
     auto a_flat = a.flat<T>().data();
     auto b_flat = b.flat<T>().data();
@@ -195,7 +201,9 @@ class XnorGemmOp : public OpKernel {
     auto Bconc_flat = Bconc.flat<int32>().data();
     auto c_flat = out->flat<T>().data();
 
+    #ifdef DEBUG
     printf("\n\nXnorGemmOp -- created a_flat, Aconc_flat\n\n");
+    #endif
 
     #if 1
     ConcatenateRowsFunctor<Device, T>()(
@@ -203,7 +211,9 @@ class XnorGemmOp : public OpKernel {
     a_flat,
     Aconc_flat,
     m);
+    #ifdef DEBUG
     printf("\n\nXnorGemmOp -- ran ConcatenateRowsFunctor\n\n");
+    #endif
     #endif
 
     #if 1
@@ -212,7 +222,9 @@ class XnorGemmOp : public OpKernel {
     b_flat,
     Bconc_flat,    
     m);
+    #ifdef DEBUG
     printf("\n\nXnorGemmOp -- ran ConcatenateColsFunctor\n\n");
+    #endif
     #endif
 
     #if 1
@@ -224,7 +236,9 @@ class XnorGemmOp : public OpKernel {
     m,
     n,
     k);
+    #ifdef DEBUG
     printf("\n\nXnorGemmOp -- ran XnorGemmFunctor\n\n");
+    #endif
     #endif
 
     #if 0 /* For testing base kernel */

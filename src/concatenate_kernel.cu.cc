@@ -83,7 +83,9 @@ __global__ void deconcatenate_rows_kernel(int *a, float *b, int size)
 template <typename T>
 struct ConcatenateRowsFunctor<GPUDevice, T> {
     void operator()(const GPUDevice& d, const float* fA, int* Aconc, const int N) {
+#ifdef DEBUG        
         printf("\n\nConcatenateRowsFunctor\n\n");
+#endif        
         int block = BLOCK_SIZE * 4, grid = N * N / (block * 32)  + 1;
         concatenate_rows_kernel<T>
             <<<grid, block, 0, d.stream()>>>(fA, Aconc, N * N / 32);
@@ -93,7 +95,9 @@ struct ConcatenateRowsFunctor<GPUDevice, T> {
 template <typename T>
 struct ConcatenateColsFunctor<GPUDevice, T> {
     void operator()(const GPUDevice& d, const float* fB, int* Bconc, const int N) {
+#ifdef DEBUG        
         printf("\n\nConcatenateColsFunctor\n\n");
+#endif        
         int block = BLOCK_SIZE * 4;
         int grid = N / block + 1;
         concatenate_cols_kernel<T>

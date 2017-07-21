@@ -1,38 +1,33 @@
 import time
-import argparse
+import numpy as np
 import tensorflow as tf
 
-if __name__ == "__main__":
+N = 4096
+N_RUNS = 5
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--n', help='matrix dimension (square)', type=int, default=512)
-    parser.add_argument(
-        '--runs', help='how many times to run to avg random error', type=int, default=10)
-    args = parser.parse_args()
+gemm_module = tf.load_op_library('./libs/gemm_op.so')
 
-    N = args.n
+sess = tf.InteractiveSession()
 
-    gemm_module = tf.load_op_library('./libs/gemm_op.so')
-    sess = tf.InteractiveSession()
+a = tf.cast(
+    2 * (tf.random_normal(shape=[N, N], seed=1).eval() > 0) - 1, tf.float32)
+# b = tf.cast(
+#    2 * (tf.random_normal(shape=[N, N], seed=2).eval() > 0) - 1, tf.float32)
 
-    a_float = tf.cast(
-        2 * (tf.random_normal(shape=[N, N], seed=1).eval() > 0) - 1, tf.float32)
-    b_float = tf.cast(
-        2 * (tf.random_normal(shape=[N, N], seed=2).eval() > 0) - 1, tf.float32)
+xnor_timings = np.zeros(N_RUNS)
+base_timings = np.zeros(N_RUNS)
 
+for i in range(N_RUNS):
     start_time = time.time()
-    xnor_result = gemm_module.gemm(a_float, b_float)
-    xnor_result.eval()
-    xnor_time = time.time() - start_time
-
+    gemm_module.gemm(a, a).eval()
+    xnor_timings[i] = time.time() - start_time
+    print("xnor_gemm %d took %f" % (i, xnor_timings[i]))
+print("Avg XNOR kernel execution time over %d runs: %f +/- %f" % (N_RUNS - 1,
+                                                                  xnor_timings[1:].mean(), xnor_timings[1:].std()))
+for i in range(N_RUNS):
     start_time = time.time()
-    tf_result = tf.matmul(a_float, b_float)
-    tf_result.eval()
-    tf_time = time.time() - start_time
-
-    print(xnor_result.eval())
-    print(tf_result.eval())
-
-    print("xnor_gemm() took %f" % xnor_time)
-    print("tf.matmul() took %f" % tf_time)
+    tf.matmul(a, a).eval()
+    base_timings[i] = time.time() - start_time
+    print("matmul %d took %f" % (i, base_timings[i]))
+print("Avg MatMul execution time over %d runs: %f +/- %f" % (N_RUNS - 1,
+                                                             base_timings[1:].mean(), base_timings[1:].std()))

@@ -153,10 +153,14 @@ class XnorGemmOp : public OpKernel {
                        Tensor* out_temp);
     */
 
-    Tensor* Aconc = nullptr;
-    Tensor* Bconc = nullptr;
-    OP_REQUIRES_OK(ctx, ctx->allocate_temp(DT_INT32, out_shape, Aconc));
-    OP_REQUIRES_OK(ctx, ctx->allocate_temp(DT_INT32, out_shape, Bconc));
+    printf("\n\nXnorGemmOp -- allocated output\n\n");
+
+    Tensor Aconc;// = nullptr;
+    Tensor Bconc;// = nullptr;
+    OP_REQUIRES_OK(ctx, ctx->allocate_temp(DT_INT32, out_shape, &Aconc));
+    OP_REQUIRES_OK(ctx, ctx->allocate_temp(DT_INT32, out_shape, &Bconc));
+
+    printf("\n\nXnorGemmOp -- allocated temp\n\n");
 
     if (out->NumElements() == 0) {
       // If a has shape [0, x] or b has shape [x, 0], the output shape
@@ -183,11 +187,15 @@ class XnorGemmOp : public OpKernel {
     const int32 k = a.dim_size(dim_pair[0].first);
     const int32 n = b.dim_size(1 - dim_pair[0].second);
 
-    auto a_flat = a.flat<float>().data();
-    auto b_flat = b.flat<float>().data();
-    auto Aconc_flat = Aconc->flat<int32>().data();
-    auto Bconc_flat = Bconc->flat<int32>().data();
-    auto c_flat = out->flat<float>().data();
+    printf("\n\nXnorGemmOp -- created m,n,k\n\n");
+
+    auto a_flat = a.flat<T>().data();
+    auto b_flat = b.flat<T>().data();
+    auto Aconc_flat = Aconc.flat<int32>().data();
+    auto Bconc_flat = Bconc.flat<int32>().data();
+    auto c_flat = out->flat<T>().data();
+
+    printf("\n\nXnorGemmOp -- created a_flat, Aconc_flat\n\n");
 
     #if 1
     ConcatenateRowsFunctor<Device, T>()(
@@ -195,6 +203,7 @@ class XnorGemmOp : public OpKernel {
     a_flat,
     Aconc_flat,
     m);
+    printf("\n\nXnorGemmOp -- ran ConcatenateRowsFunctor\n\n");
     #endif
 
     #if 1
@@ -203,8 +212,9 @@ class XnorGemmOp : public OpKernel {
     b_flat,
     Bconc_flat,    
     m);
+    printf("\n\nXnorGemmOp -- ran ConcatenateColsFunctor\n\n");
     #endif
-    
+
     #if 1
     XnorGemmFunctor<Device, T>()(
     ctx->eigen_device<Device>(),
@@ -214,6 +224,7 @@ class XnorGemmOp : public OpKernel {
     m,
     n,
     k);
+    printf("\n\nXnorGemmOp -- ran XnorGemmFunctor\n\n");
     #endif
 
     #if 0 /* For testing base kernel */
@@ -233,10 +244,10 @@ class XnorGemmOp : public OpKernel {
 };
 
 REGISTER_OP("Gemm")
-    //.Attr("T: {float, int32} = DT_FLOAT")
-      .Input("a: float")
-      .Input("b: float")
-      .Output("c: float");
+    .Attr("T: {float, int32} = DT_FLOAT")
+      .Input("a: T")
+      .Input("b: T")
+      .Output("c: T");
 
 /*
     .Doc(R"doc(

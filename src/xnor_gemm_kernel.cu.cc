@@ -88,15 +88,20 @@ void XnorGemmKernelLauncher(unsigned int* A, unsigned int* B, float* C, int m, i
 // Define the GPU implementation that launches the CUDA kernel.
 template <typename T>
 struct XnorGemmFunctor<GPUDevice, T> {
-    void operator()(const GPUDevice& d, const int* A, const int* B, float* C, const int m, const int n, const int k) {
+    void operator()(const GPUDevice& d, const int* Aconc, const int* Bconc, float* fC, const int m, const int n, const int k) {
         // Launch the cuda kernel.
         //
         // See core/util/cuda_kernel_helper.h for example of computing
         // block count and thread_per_block count.
         printf("\n\nInt32 input -- using XnorGemmFunctor\n\n");
+        /*
         int block_count = BLOCK_SIZE;
         int thread_per_block = 512;
         xnor_gemm<T><<<block_count, thread_per_block, 0, d.stream()>>>(A, B, C, m, n, k);
+        */
+        dim3 blockDim(16, 16);
+        dim3 gridDim(n / 16 + 1, n / 16 + 1);
+        xnor_gemm<T><<<gridDim, blockDim, 0, d.stream()>>>(Aconc, Bconc, fC, m, n / 32, k);
     }
 };
 

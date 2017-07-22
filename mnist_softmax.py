@@ -33,6 +33,39 @@ from gemm_op import xnor_gemm
 FLAGS = None
 N_HIDDEN = 512
 
+'''
+# use tf.sign() instead
+# weight and activation binarization function -- eq.(1) in Courbariaux et al. 
+def sign(x):
+    return 2 * tf.cast(x > 0, tf.float32) - 1
+'''    
+
+# hard sigmoid -- eq.(3) in Courbariaux et al. 
+def hard_sigmoid(x):
+    return tf.clip_by_value((x + 1.) / 2, 0, 1)    
+
+'''
+# Activation binarization function
+def SignTheano(x):
+    return tf.subtract(tf.multiply(tf.cast(tf.greater_equal(x, tf.zeros(tf.shape(x))), tf.float32), 2.0), 1.0)
+'''    
+
+# The weights' binarization function,
+# taken directly from the BinaryConnect github repository and simplified
+# (which was made available by his authors)
+def binarization(W, H, binary=True):
+
+    if not binary:
+        Wb = W
+    else:
+        # [-1,1] -> [0,1]
+        Wb = hard_sigmoid(W / H)
+        Wb = tf.round(Wb)
+
+        # 0 or 1 -> -1 or 1
+        Wb = tf.cast(tf.where(Wb, H, -H), tf.float)
+    return Wb
+
 
 def main(_):
     # Import data

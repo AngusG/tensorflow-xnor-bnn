@@ -3,30 +3,31 @@ import numpy as np
 import tensorflow as tf
 from gemm_op import xnor_gemm
 
-N = 4096
-N_RUNS = 5
+N = 8196
+N_RUNS = 4
 
 A = tf.placeholder(tf.float32, [N, N])
 B = tf.placeholder(tf.float32, [N, N])
 xnor_gemm = xnor_gemm(A, B)
-matmul = tf.matmul(A,B)
+matmul = tf.matmul(A, B)
 
 # Re-use a for benchmarking on GPU w/only 4GB memory
-a = 2 * tf.cast(tf.random_normal(shape=[N, N], seed=1) > 0, tf.float32) - 1
+#a = 2 * tf.cast(tf.random_normal(shape=[N, N], seed=1) > 0, tf.float32) - 1
+a_T = tf.sign(tf.random_normal(shape=[N, N], seed=1))
 
 xnor_timings = np.zeros(N_RUNS)
 base_timings = np.zeros(N_RUNS)
 
 with tf.Session() as sess:
 
-    a_f32 = sess.run(a)
+    a = sess.run(a_T)
     #b_f32 = sess.run(b)
     
     for i in range(N_RUNS):
         ########### benchmark xnor ############
         start_time = time.time()
-        #xnor_gemm_result = sess.run(xnor_gemm, feed_dict={A: a_f32, B: a_f32})
-        xnor_gemm_result = sess.run(xnor_gemm(a_f32, a_f32))
+        xnor_gemm_result = sess.run(xnor_gemm, feed_dict={A: a, B: a})
+        #xnor_gemm_result = sess.run(xnor_gemm(a_f32, a_f32))
         xnor_timings[i] = time.time() - start_time
 
         print("xnor_gemm %d took %f" % (i, xnor_timings[i]))
@@ -37,8 +38,8 @@ with tf.Session() as sess:
     for i in range(N_RUNS):
         ########### benchmark matmul ##########
         start_time = time.time()
-        #matmul_result = sess.run(matmul, feed_dict={A: a_f32, B: a_f32})
-        matmul_result = sess.run(tf.matmul(a_f32, a_f32))
+        matmul_result = sess.run(matmul, feed_dict={A: a, B: a})
+        #matmul_result = sess.run(tf.matmul(a_f32, a_f32))
         base_timings[i] = time.time() - start_time
 
         print("matmul %d took %f" % (i, base_timings[i]))

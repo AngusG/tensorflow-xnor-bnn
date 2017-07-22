@@ -8,10 +8,13 @@ N_RUNS = 5
 
 sess = tf.InteractiveSession()
 
+a = tf.sign(tf.random_normal(shape=[N, N], seed=1).eval())
+'''
 a = tf.cast(
     2 * (tf.random_normal(shape=[N, N], seed=1).eval() > 0) - 1, tf.float32)
-# b = tf.cast(
-#    2 * (tf.random_normal(shape=[N, N], seed=2).eval() > 0) - 1, tf.float32)
+b = tf.cast(
+    2 * (tf.random_normal(shape=[N, N], seed=2).eval() > 0) - 1, tf.float32)
+'''
 
 xnor_timings = np.zeros(N_RUNS)
 base_timings = np.zeros(N_RUNS)

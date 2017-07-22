@@ -28,8 +28,10 @@ import sys
 from tensorflow.examples.tutorials.mnist import input_data
 
 import tensorflow as tf
+from gemm_op import xnor_gemm
 
 FLAGS = None
+N_HIDDEN = 512
 
 
 def main(_):
@@ -38,9 +40,21 @@ def main(_):
 
     # Create the model
     x = tf.placeholder(tf.float32, [None, 784])
-    W = tf.Variable(tf.zeros([784, 10]))
-    b = tf.Variable(tf.zeros([10]))
-    y = tf.matmul(x, W) + b
+
+    with tf.name_scope('fc1_fp') as scope:
+        W_1 = tf.Variable(tf.truncated_normal([784, N_HIDDEN]))
+        b_1 = tf.Variable(tf.zeros([N_HIDDEN]))
+        fc_1 = tf.nn.relu(tf.matmul(x, W_1) + b_1)
+
+    with tf.name_scope('fc2_xnor') as scope:
+        W_1 = tf.Variable(tf.truncated_normal([N_HIDDEN, N_HIDDEN]))
+        b_1 = tf.Variable(tf.zeros([N_HIDDEN]))
+        fc_1 = tf.nn.relu(gemm_module.gemm(x, W_1) + b_1)
+
+    with tf.name_scope('fc3_fp') as scope:
+        W_2 = tf.Variable(tf.truncated_normal([N_HIDDEN, 10]))
+        b_2 = tf.Variable(tf.zeros([10]))
+        y = tf.matmul(fc_1, W_2) + b_2
 
     # Define loss and optimizer
     y_ = tf.placeholder(tf.float32, [None, 10])
@@ -79,7 +93,7 @@ def main(_):
 
     # Test trained model
     print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images,
-                                        y_: mnist.test.labels})))
+                                                                      y_: mnist.test.labels})))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

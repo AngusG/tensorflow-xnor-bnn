@@ -1,15 +1,14 @@
 import time
 import numpy as np
 import tensorflow as tf
+from gemm_op import xnor_gemm
 
 N = 4096
 N_RUNS = 5
 
-gemm_module = tf.load_op_library('./libs/gemm_op.so')
-
 A = tf.placeholder(tf.float32, [N, N])
 B = tf.placeholder(tf.float32, [N, N])
-xnor_gemm = gemm_module.gemm(A, B)
+xnor_gemm = xnor_gemm(A, B)
 matmul = tf.matmul(A,B)
 
 # Re-use a for benchmarking on GPU w/only 4GB memory
@@ -27,7 +26,7 @@ with tf.Session() as sess:
         ########### benchmark xnor ############
         start_time = time.time()
         #xnor_gemm_result = sess.run(xnor_gemm, feed_dict={A: a_f32, B: a_f32})
-        xnor_gemm_result = sess.run(gemm_module.gemm(a_f32, a_f32))
+        xnor_gemm_result = sess.run(xnor_gemm(a_f32, a_f32))
         xnor_timings[i] = time.time() - start_time
 
         print("xnor_gemm %d took %f" % (i, xnor_timings[i]))

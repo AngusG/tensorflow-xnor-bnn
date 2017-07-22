@@ -1,11 +1,10 @@
 import time
 import numpy as np
 import tensorflow as tf
+from gemm_op import xnor_gemm
 
 N = 4096
 N_RUNS = 5
-
-gemm_module = tf.load_op_library('./libs/gemm_op.so')
 
 sess = tf.InteractiveSession()
 
@@ -19,7 +18,7 @@ base_timings = np.zeros(N_RUNS)
 
 for i in range(N_RUNS):
     start_time = time.time()
-    gemm_module.gemm(a, a).eval()
+    xnor_gemm(a, a).eval()
     xnor_timings[i] = time.time() - start_time
     print("xnor_gemm %d took %f" % (i, xnor_timings[i]))
 print("Avg XNOR kernel execution time over %d runs: %f +/- %f" % (N_RUNS - 1,

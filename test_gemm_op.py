@@ -5,17 +5,15 @@ from gemm_op import xnor_gemm
 class GemmTest(tf.test.TestCase):
 
     def testGemm(self):
-        #gemm_module = tf.load_op_library('./libs/gemm_op.so')
         with self.test_session():
 
-            N = 4096
+            N = 512
 
-            a = tf.sign(tf.random_normal(shape=[N, N], seed=1))
-            #b = tf.sign(tf.random_normal(shape=[N, N], seed=2))
+            a = tf.sign(tf.random_normal(shape=[N, N], seed=1).eval())
+            b = tf.sign(tf.random_normal(shape=[N, N], seed=2).eval())
 
-            #xnor_result = gemm_module.gemm(a, b)
-            xnor_result = xnor_gemm(a, a)
-            tf_result = tf.matmul(a, a)
+            xnor_result = xnor_gemm(a, b)
+            tf_result = tf.matmul(a, b)
 
             print("Result for xnor_gemm()\n")
             print(xnor_result.eval())

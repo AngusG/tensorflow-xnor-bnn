@@ -28,109 +28,82 @@ import sys
 from tensorflow.examples.tutorials.mnist import input_data
 
 import tensorflow as tf
-from gemm_op import xnor_gemm
+from binary_net import BinaryNet
 
 FLAGS = None
 N_HIDDEN = 512
 
+
+
+#sess = tf.InteractiveSession()
+# def main(_):
+# Import data
+data_dir = '/scratch/gallowaa/mnist'
+#mnist = input_data.read_data_sets(FLAGS.data_dir, one_hot=True)
+mnist = input_data.read_data_sets(data_dir, one_hot=True)
+
+# Create the model
+x = tf.placeholder(tf.float32, [None, 784])
+
+bnn = BinaryNet(N_HIDDEN, x)
+y = bnn.output
+
+print("Created layers")
+
+# Define loss and optimizer
+y_ = tf.placeholder(tf.float32, [None, 10])
+
+# The raw formulation of cross-entropy,
+#
+#   tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(tf.nn.softmax(y)),
+#                                 reduction_indices=[1]))
+#
+# can be numerically unstable.
+#
+# So here we use tf.nn.softmax_cross_entropy_with_logits on the raw
+# outputs of 'y', and then average across the batch.
+cross_entropy = tf.reduce_mean(
+    tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y))
+#train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
+train_step = tf.train.AdamOptimizer(0.1).minimize(cross_entropy)
+
+correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+print("Defined model")
+
+sess = tf.InteractiveSession()
+print("tf.InteractiveSession()")
+tf.global_variables_initializer().run()
+print("tf.global_variables_initializer().run()")
+
+# Train
+for step in range(10000):
+    batch_xs, batch_ys = mnist.train.next_batch(512)
+    __, loss = sess.run([train_step, cross_entropy],
+                        feed_dict={x: batch_xs, y_: batch_ys})
+    
+    if step % 100 == 0:
+        print("step %d, loss = %.4f" % (step, loss))
+        # Test trained model
+        '''
+        test_acc = sess.run(accuracy, feed_dict={x: mnist.test.images,
+                                                 y_: mnist.test.labels})                                                 
+        print("step %d, loss = %.4f, test accuracy %.4f" %
+              (step, loss, test_acc))
+        '''              
+
+# Test trained model
 '''
-# use tf.sign() instead
-# weight and activation binarization function -- eq.(1) in Courbariaux et al. 
-def sign(x):
-    return 2 * tf.cast(x > 0, tf.float32) - 1
-'''    
-
-# hard sigmoid -- eq.(3) in Courbariaux et al. 
-def hard_sigmoid(x):
-    return tf.clip_by_value((x + 1.) / 2, 0, 1)    
+print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images,
+                                                                  y_: mnist.test.labels})))
+'''                                                                  
 
 '''
-# Activation binarization function
-def SignTheano(x):
-    return tf.subtract(tf.multiply(tf.cast(tf.greater_equal(x, tf.zeros(tf.shape(x))), tf.float32), 2.0), 1.0)
-'''    
-
-# The weights' binarization function,
-# taken directly from the BinaryConnect github repository and simplified
-# (which was made available by his authors)
-def binarization(W, H, binary=True):
-
-    if not binary:
-        Wb = W
-    else:
-        # [-1,1] -> [0,1]
-        Wb = hard_sigmoid(W / H)
-        Wb = tf.round(Wb)
-
-        # 0 or 1 -> -1 or 1
-        Wb = tf.cast(tf.where(Wb, H, -H), tf.float)
-    return Wb
-
-
-def main(_):
-    # Import data
-    mnist = input_data.read_data_sets(FLAGS.data_dir, one_hot=True)
-
-    # Create the model
-    x = tf.placeholder(tf.float32, [None, 784])
-
-    with tf.name_scope('fc1_fp') as scope:
-        W_1 = tf.Variable(tf.truncated_normal([784, N_HIDDEN]))
-        b_1 = tf.Variable(tf.zeros([N_HIDDEN]))
-        fc_1 = tf.nn.relu(tf.matmul(x, W_1) + b_1)
-
-    with tf.name_scope('fc2_xnor') as scope:
-        W_1 = tf.Variable(tf.truncated_normal([N_HIDDEN, N_HIDDEN]))
-        b_1 = tf.Variable(tf.zeros([N_HIDDEN]))
-        fc_1 = tf.nn.relu(gemm_module.gemm(x, W_1) + b_1)
-
-    with tf.name_scope('fc3_fp') as scope:
-        W_2 = tf.Variable(tf.truncated_normal([N_HIDDEN, 10]))
-        b_2 = tf.Variable(tf.zeros([10]))
-        y = tf.matmul(fc_1, W_2) + b_2
-
-    # Define loss and optimizer
-    y_ = tf.placeholder(tf.float32, [None, 10])
-
-    # The raw formulation of cross-entropy,
-    #
-    #   tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(tf.nn.softmax(y)),
-    #                                 reduction_indices=[1]))
-    #
-    # can be numerically unstable.
-    #
-    # So here we use tf.nn.softmax_cross_entropy_with_logits on the raw
-    # outputs of 'y', and then average across the batch.
-    cross_entropy = tf.reduce_mean(
-        tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y))
-    train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
-
-    correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-
-    sess = tf.InteractiveSession()
-    tf.global_variables_initializer().run()
-
-    # Train
-    for step in range(1000):
-        batch_xs, batch_ys = mnist.train.next_batch(100)
-        __, loss = sess.run([train_step, cross_entropy],
-                            feed_dict={x: batch_xs, y_: batch_ys})
-
-        if step % 100 == 0:
-            # Test trained model
-            test_acc = sess.run(accuracy, feed_dict={x: mnist.test.images,
-                                                     y_: mnist.test.labels})
-            print("step %d, loss = %.4f, test accuracy %.4f" %
-                  (step, loss, test_acc))
-
-    # Test trained model
-    print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images,
-                                                                      y_: mnist.test.labels})))
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, default='/scratch/gallowaa/mnist',
                         help='Directory for storing input data')
     FLAGS, unparsed = parser.parse_known_args()
     tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+'''

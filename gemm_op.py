@@ -1,7 +1,8 @@
 import tensorflow as tf
 from tensorflow.python.framework import ops
-from tensorflow.python.ops import array_ops
-from tensorflow.python.ops import sparse_ops
+#from tensorflow.python.ops import array_ops
+#from tensorflow.python.ops import sparse_ops
+from tensorflow.python.ops import math_ops
 
 gemm_module = tf.load_op_library('./libs/gemm_op.so')
 xnor_gemm = gemm_module.gemm
@@ -26,7 +27,10 @@ def _xnor_gemm_grad(op, grad):
     first_grad = array_ops.reshape(grad, [-1])[0]
     to_zero_grad = sparse_ops.sparse_to_dense([index], shape, first_grad, 0)
     '''
-
-    
-
-    return [to_zero_grad]  # List of one Tensor, since we have one input
+    #a = math_ops.conj(op.inputs[0])
+    #b = math_ops.conj(op.inputs[1])
+    a = op.inputs[0]
+    b = op.inputs[1]
+    grad_a = math_ops.matmul(grad, b, transpose_b=True)
+    grad_b = math_ops.matmul(a, grad, transpose_a=True)
+    return grad_a, grad_b

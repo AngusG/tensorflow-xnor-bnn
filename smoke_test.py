@@ -4,7 +4,7 @@ import tensorflow as tf
 from gemm_op import xnor_gemm
 
 N = 8196
-N_RUNS = 4
+N_RUNS = 5
 
 A = tf.placeholder(tf.float32, [N, N])
 B = tf.placeholder(tf.float32, [N, N])
@@ -12,8 +12,8 @@ xnor_gemm = xnor_gemm(A, B)
 matmul = tf.matmul(A, B)
 
 # Re-use a for benchmarking on GPU w/only 4GB memory
-#a = 2 * tf.cast(tf.random_normal(shape=[N, N], seed=1) > 0, tf.float32) - 1
 a_T = tf.sign(tf.random_normal(shape=[N, N], seed=1))
+b_T = tf.sign(tf.random_normal(shape=[N, N], seed=2))
 
 xnor_timings = np.zeros(N_RUNS)
 base_timings = np.zeros(N_RUNS)
@@ -21,7 +21,7 @@ base_timings = np.zeros(N_RUNS)
 with tf.Session() as sess:
 
     a = sess.run(a_T)
-    #b_f32 = sess.run(b)
+    b = sess.run(b_T)
     
     for i in range(N_RUNS):
         ########### benchmark xnor ############

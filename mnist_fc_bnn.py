@@ -14,14 +14,20 @@ from binary_net import BinaryNet
 
 BN_TRAIN_PHASE = 1
 BN_TEST_PHASE = 0
+EVAL_EVERY_N_STEPS = 100
+
 
 def create_dir_if_not_exists(dir):
     if not os.path.exists(dir):
         dir += '/1'
+        os.makedirs(dir)
     else:
-        sub_dir = str(int(next(os.walk(dir))[1][-1]) + 1)
-        dir += '/' + sub_dir
-    os.makedirs(dir)
+        if len(next(os.walk(dir))[1]) > 0:
+            sub_dir = str(int(next(os.walk(dir))[1][-1]) + 1)
+            dir += '/' + sub_dir
+        else:
+            dir += '/1'
+        os.makedirs(dir)
     print('Logging to %s' % dir)
 
 if __name__ == '__main__':
@@ -71,7 +77,8 @@ if __name__ == '__main__':
         binary = False
         fast = False
 
-    log_path = args.train_dir + sub_1 + sub_2 + 'hid_' + str(args.n_hidden) + '/'
+    log_path = args.train_dir + sub_1 + \
+        sub_2 + 'hid_' + str(args.n_hidden) + '/'
     if args.batch_norm:
         print("Using batch normalization")
         batch_norm = True
@@ -85,7 +92,7 @@ if __name__ == '__main__':
 
     #log_path = os.path.join(log_path, args.sub)
     create_dir_if_not_exists(log_path)
-    '''
+
     # import data
     if binary:
         mnist = input_data.read_data_sets(
@@ -134,7 +141,8 @@ if __name__ == '__main__':
     summary_writer = tf.summary.FileWriter(log_path, sess.graph)
     training_summary = tf.summary.scalar("train loss", cross_entropy)
     test_summary = tf.summary.scalar("test acc.", accuracy)
-    layer_1_summ = bnn.layer_1_summ
+    #w1_summary = bnn.w1_summ
+    merge_op = tf.summary.merge_all()
 
     # Train
     for step in range(args.max_steps):
@@ -142,36 +150,38 @@ if __name__ == '__main__':
         batch_xs, batch_ys = mnist.train.next_batch(args.batch_size)
 
         if binary:
-            __, loss, train_summ = sess.run([train_op, cross_entropy, training_summary],
-                                            feed_dict={x: batch_xs.astype('int32'), y_: batch_ys.astype('int32')})
+            __, loss = sess.run([train_op, cross_entropy],
+                                feed_dict={x: batch_xs.astype('int32'), y_: batch_ys.astype('int32')})
         else:
             if batch_norm:
-                __, loss, train_summ, l1_summ = sess.run([train_op, cross_entropy, training_summary, layer_1_summ],
-                                                         feed_dict={x: batch_xs, y_: batch_ys, phase: BN_TRAIN_PHASE})
+                __, loss = sess.run([train_op, cross_entropy],
+                                    feed_dict={x: batch_xs, y_: batch_ys, phase: BN_TRAIN_PHASE})
             else:
-                __, loss, train_summ, l1_summ = sess.run([train_op, cross_entropy, training_summary, layer_1_summ],
-                                                         feed_dict={x: batch_xs, y_: batch_ys})
+                __, loss = sess.run([train_op, cross_entropy],
+                                    feed_dict={x: batch_xs, y_: batch_ys})
 
-        if step % 100 == 0:
+        if step % EVAL_EVERY_N_STEPS == 0:
+
+            #merged_summ = sess.run([merge_op])
+
             # Test trained model
             if binary:
                 test_batch_xs, test_batch_ys = mnist.test.next_batch(
                     args.batch_size)
-                test_acc, test_summ = sess.run([accuracy, test_summary], feed_dict={
+                test_acc = sess.run([accuracy], feed_dict={
                     x: test_batch_xs.astype('int32'), y_: test_batch_ys.astype('int32')})
             else:
                 if batch_norm:
-                    test_acc, test_summ = sess.run([accuracy, test_summary], feed_dict={x: mnist.test.images,
-                                                                                        y_: mnist.test.labels, phase: BN_TEST_PHASE})
+                    test_acc = sess.run([accuracy], feed_dict={
+                                        x: mnist.test.images, y_: mnist.test.labels, phase: BN_TEST_PHASE})
                 else:
-                    test_acc, test_summ = sess.run([accuracy, test_summary], feed_dict={x: mnist.test.images,
-                                                                                        y_: mnist.test.labels})
+                    test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
+                                                     x: mnist.test.images, y_: mnist.test.labels})
+
             print("step %d, loss = %.4f, test accuracy %.4f" %
                   (step, loss, test_acc))
 
-            summary_writer.add_summary(l1_summ, step)
-            summary_writer.add_summary(train_summ, step)
-            summary_writer.add_summary(test_summ, step)
+            summary_writer.add_summary(merged_summ, step)
             summary_writer.flush()
 
     # Test trained model
@@ -186,4 +196,3 @@ if __name__ == '__main__':
         else:
             print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images,
                                                                               y_: mnist.test.labels})))
-    '''                                                                              

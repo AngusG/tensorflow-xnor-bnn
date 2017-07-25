@@ -67,6 +67,7 @@ class BinaryNet:
             with tf.name_scope('fc1_b') as scope:
 
                 W_1 = self.init_layer('W_1', 784, self.n_hidden)
+                self.w1_summ = tf.summary.histogram(name='W1_summ', values=W_1)
                 fc1 = tf.cast(self.quantize(
                     tf.matmul(self.input, tf.cast(self.quantize(W_1), tf.int32))), tf.float32)
                 '''
@@ -76,6 +77,7 @@ class BinaryNet:
             with tf.name_scope('fc2_b') as scope:
 
                 W_2 = self.init_layer('W_2', self.n_hidden, self.n_hidden)
+                self.w2_summ = tf.summary.histogram(name='W2_summ', values=W_2)
                 if self.fast:
                     fc2 = self.quantize(self.binary_tanh_unit(
                         xnor_gemm(fc1, self.quantize(W_2))))
@@ -86,6 +88,7 @@ class BinaryNet:
             with tf.name_scope('fc3_b') as scope:
 
                 W_3 = self.init_layer('W_3', self.n_hidden, self.n_hidden)
+                self.w3_summ = tf.summary.histogram(name='W3_summ', values=W_3)
                 if self.fast:
                     fc3 = self.quantize(self.binary_tanh_unit(
                         xnor_gemm(fc2, self.quantize(W_3))))
@@ -95,14 +98,15 @@ class BinaryNet:
 
             with tf.name_scope('fcout_b') as scope:
 
-                W_3 = self.init_layer('W_out', self.n_hidden, 10)
+                W_out = self.init_layer('W_out', self.n_hidden, 10)
+                self.wout_summ = tf.summary.histogram(name='Wout_summ', values=W_out)
                 self.output = tf.matmul(fc2, self.quantize(W_3))
         else:
 
             with tf.name_scope('fc1_fp') as scope:
 
                 W_1 = self.init_layer('W_1', 784, self.n_hidden)
-                self.layer_1_summ = tf.summary.histogram(name='layer_1_summ', values=W_1)
+                self.w1_summ = tf.summary.histogram(name='W1_summ', values=W_1)
                 fc1 = tf.nn.relu(tf.matmul(self.input, W_1))
                 if batch_norm:
                     fc1 = tf.contrib.layers.batch_norm(
@@ -111,6 +115,7 @@ class BinaryNet:
             with tf.name_scope('fc2_fp') as scope:
 
                 W_2 = self.init_layer('W_2', self.n_hidden, self.n_hidden)
+                self.w2_summ = tf.summary.histogram(name='W2_summ', values=W_2)
                 fc2 = tf.nn.relu(tf.matmul(fc1, W_2))
                 if batch_norm:
                     fc2 = tf.contrib.layers.batch_norm(
@@ -119,6 +124,7 @@ class BinaryNet:
             with tf.name_scope('fc3_fp') as scope:
 
                 W_3 = self.init_layer('W_3', self.n_hidden, self.n_hidden)
+                self.w3_summ = tf.summary.histogram(name='W3_summ', values=W_3)
                 fc3 = tf.nn.relu(tf.matmul(fc2, W_3))
                 if batch_norm:
                     fc3 = tf.contrib.layers.batch_norm(
@@ -127,6 +133,7 @@ class BinaryNet:
             with tf.name_scope('fcout_fp') as scope:
 
                 W_out = self.init_layer('W_out', self.n_hidden, 10)
+                self.wout_summ = tf.summary.histogram(name='Wout_summ', values=W_out)
                 self.output = tf.matmul(fc3, W_out)
                 if batch_norm:
                     self.output = tf.contrib.layers.batch_norm(

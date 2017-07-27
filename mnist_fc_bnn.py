@@ -13,32 +13,14 @@ from tensorflow.examples.tutorials.mnist import input_data
 from tensorflow.python import debug as tf_debug
 
 import tensorflow as tf
+
+from tqdm import tqdm
 from binary_net import BinaryNet
-import numpy as np
+from utils import create_dir_if_not_exists
 
 BN_TRAIN_PHASE = 1
 BN_TEST_PHASE = 0
-EVAL_EVERY_N_STEPS = 100
 
-
-def create_dir_if_not_exists(dir):
-    if not os.path.exists(dir):
-        dir += '/1'
-        os.makedirs(dir)
-    else:
-        sub_dirs = next(os.walk(dir))[1]
-        if len(sub_dirs) > 0:
-            print(dir)
-            arr = np.asarray(sub_dirs).astype('int')
-            sub = str(arr.max() + 1)
-            print(sub)
-            dir += '/' + sub
-            print(dir)
-        else:
-            dir += '/1'
-        os.makedirs(dir)
-    print('Logging to %s' % dir)
-    return dir
 
 if __name__ == '__main__':
 
@@ -56,11 +38,15 @@ if __name__ == '__main__':
     parser.add_argument(
         '--n_hidden', help='number of hidden units', type=int, default=512)
     parser.add_argument(
-        '--l1', help='l1 regularization penalty', type=float, default=0.0001)
+        '--reg', help='l1 regularization penalty', type=float, default=0.0001)
+    parser.add_argument(
+        '--lr', help='learning rate', type=float, default=0.0001)
     parser.add_argument(
         '--batch_size', help='examples per mini-batch', type=int, default=100)
     parser.add_argument(
         '--max_steps', help='maximum training steps', type=int, default=1000)
+    parser.add_argument(
+        '--eval_every_n', help='validate model every n steps', type=int, default=100)
     parser.add_argument(
         '--binary', help="should weights and activations be constrained to -1, +1", action="store_true")
     parser.add_argument(
@@ -69,6 +55,8 @@ if __name__ == '__main__':
         '--batch_norm', help="batch normalize activations", action="store_true")
     parser.add_argument(
         '--debug', help="run with tfdbg", action="store_true")
+    parser.add_argument(
+        '--time', help="run speed benchmark", action="store_true")
     args = parser.parse_args()
 
     # handle command line args
@@ -100,27 +88,18 @@ if __name__ == '__main__':
     else:
         batch_norm = False
 
-    log_path += 'bs_' + str(args.batch_size)
+    time = True if args.time else False
 
-    log_path = os.path.join(log_path, str(args.l1))
+    log_path += 'bs_' + str(args.batch_size)
+    log_path = os.path.join(log_path, str(args.reg))
     log_path = create_dir_if_not_exists(log_path)
 
     # import data
-    '''
-    if binary:
-        mnist = input_data.read_data_sets(
-            args.data_dir, dtype=tf.uint8, one_hot=True)
-        dtype = tf.int32
-    else:
-        mnist = input_data.read_data_sets(
-            args.data_dir, dtype=tf.float32, one_hot=True)
-        dtype = tf.float32
-    '''
     mnist = input_data.read_data_sets(
         args.data_dir, dtype=tf.float32, one_hot=True)
     dtype = tf.float32
 
-    global_step = variable_scope.get_variable(  # this needs to be defined for tf.contrib.layers.optimize_loss()
+    global_step = variable_scope.get_variable(  # needs to be defined for tf.contrib.layers.optimize_loss()
         "global_step", [],
         trainable=False,
         dtype=dtypes.int64,
@@ -138,7 +117,7 @@ if __name__ == '__main__':
     cross_entropy = tf.reduce_mean(
         tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y))
 
-    l1_regularizer = tf.contrib.layers.l1_regularizer(scale=args.l1)
+    l1_regularizer = tf.contrib.layers.l1_regularizer(scale=args.reg)
     weights = tf.trainable_variables()  # all vars of your graph
     reg = tf.contrib.layers.apply_regularization(l1_regularizer, weights)
     total_loss = cross_entropy + reg
@@ -147,23 +126,20 @@ if __name__ == '__main__':
     if batch_norm:
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
-            # ensures that we execute the update_ops before performing the
-            # train_op
+            # ensures that we execute the update_ops before performing the train_op
             #train_op = tf.train.AdamOptimizer(0.01).minimize(total_loss)
             train_op = tf.contrib.layers.optimize_loss(
-                total_loss, global_step, learning_rate=0.01, optimizer='Adam', 
+                total_loss, global_step, learning_rate=0.001, optimizer='Adam',
                 summaries=["gradients"])
     else:
         #train_op = tf.train.AdamOptimizer(0.01).minimize(total_loss)
         train_op = tf.contrib.layers.optimize_loss(
-                total_loss, global_step, learning_rate=0.01, optimizer='Adam', 
-                summaries=["gradients"])
+            total_loss, global_step, learning_rate=0.001, optimizer='Adam',
+            summaries=["gradients"])
 
     correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-    # sess = tf.InteractiveSession()
-    # tf.global_variables_initializer().run()
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
 
@@ -179,54 +155,43 @@ if __name__ == '__main__':
     merge_op = tf.summary.merge_all()
 
     # Train
-    for step in range(args.max_steps):
+    if not time:
+        for step in range(args.max_steps):
 
-        batch_xs, batch_ys = mnist.train.next_batch(args.batch_size)
+            batch_xs, batch_ys = mnist.train.next_batch(args.batch_size)
 
-        '''
-        if binary:
-            __, loss = sess.run([train_op, total_loss], feed_dict={x: batch_xs.astype(
-                'int32'), y_: batch_ys.astype('int32'), phase: BN_TRAIN_PHASE})
-        else:
             __, loss = sess.run([train_op, total_loss], feed_dict={
-                                x: batch_xs, y_: batch_ys, phase: BN_TRAIN_PHASE})
-        '''
-        __, loss = sess.run([train_op, total_loss], feed_dict={
-            x: batch_xs, y_: batch_ys, phase: BN_TRAIN_PHASE})
+                x: batch_xs, y_: batch_ys, phase: BN_TRAIN_PHASE})
 
-        if step % EVAL_EVERY_N_STEPS == 0:
+            if step % args.eval_every_n == 0:
 
-            #test_batch_xs, test_batch_ys = mnist.test.next_batch(args.batch_size)
-            '''
-            if binary:
-                test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
-                    x: mnist.test.images.astype('int32'), y_: mnist.test.labels.astype('int32'), phase: BN_TEST_PHASE})
-            else:
-                test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
-                    x: mnist.test.images, y_: mnist.test.labels, phase: BN_TEST_PHASE})
-            '''
-            test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
-                x: mnist.test.images, y_: mnist.test.labels, phase: BN_TEST_PHASE})
-            print("step %d, loss = %.4f, test accuracy %.4f" %
-                  (step, loss, test_acc))
+                if fast:
+                    test_batch_xs, test_batch_ys = mnist.test.next_batch(
+                        args.batch_size)
+                    test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
+                        x: test_batch_xs, y_: test_batch_ys, phase: BN_TEST_PHASE})
+                else:
+                    test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
+                        x: mnist.test.images, y_: mnist.test.labels, phase: BN_TEST_PHASE})
+                print("step %d, loss = %.4f, test accuracy %.4f" %
+                      (step, loss, test_acc))
 
-            summary_writer.add_summary(merged_summ, step)
-            summary_writer.flush()
+                summary_writer.add_summary(merged_summ, step)
+                summary_writer.flush()
+    else:
+        for step in tqdm(range(args.max_steps)):
+
+            batch_xs, batch_ys = mnist.train.next_batch(args.batch_size)
+
+            __, loss = sess.run([train_op, total_loss], feed_dict={
+                x: batch_xs, y_: batch_ys, phase: BN_TRAIN_PHASE})
 
     # Test trained model
-    print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images,
-                                                                      y_: mnist.test.labels,
-                                                                      phase: BN_TEST_PHASE})))
-    '''
-    if binary:
-        print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images.astype('int32'),
-                                                                          y_: mnist.test.labels.astype('int32')})))
+    if fast:
+        print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.next_batch(args.batch_size)[0],
+                                                                          y_: mnist.test.next_batch(args.batch_size)[1],
+                                                                          phase: BN_TEST_PHASE})))
     else:
-        if batch_norm:
-            print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images,
-                                                                              y_: mnist.test.labels,
-                                                                              phase: BN_TEST_PHASE})))
-        else:
-            print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images,
-                                                                              y_: mnist.test.labels})))
-    '''
+        print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images,
+                                                                          y_: mnist.test.labels,
+                                                                          phase: BN_TEST_PHASE})))

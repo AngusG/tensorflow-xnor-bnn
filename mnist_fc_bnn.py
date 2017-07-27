@@ -6,11 +6,15 @@ import sys
 import os.path
 import argparse
 
+from tensorflow.python.ops import variable_scope
+from tensorflow.python.framework import dtypes
+from tensorflow.python.ops import init_ops
 from tensorflow.examples.tutorials.mnist import input_data
 from tensorflow.python import debug as tf_debug
 
 import tensorflow as tf
 from binary_net import BinaryNet
+import numpy as np
 
 BN_TRAIN_PHASE = 1
 BN_TEST_PHASE = 0
@@ -22,9 +26,14 @@ def create_dir_if_not_exists(dir):
         dir += '/1'
         os.makedirs(dir)
     else:
-        if len(next(os.walk(dir))[1]) > 0:
-            sub_dir = str(int(next(os.walk(dir))[1][-1]) + 1)
-            dir += '/' + sub_dir
+        sub_dirs = next(os.walk(dir))[1]
+        if len(sub_dirs) > 0:
+            print(dir)
+            arr = np.asarray(sub_dirs).astype('int')
+            sub = str(arr.max() + 1)
+            print(sub)
+            dir += '/' + sub
+            print(dir)
         else:
             dir += '/1'
         os.makedirs(dir)
@@ -97,6 +106,7 @@ if __name__ == '__main__':
     log_path = create_dir_if_not_exists(log_path)
 
     # import data
+    '''
     if binary:
         mnist = input_data.read_data_sets(
             args.data_dir, dtype=tf.uint8, one_hot=True)
@@ -105,6 +115,16 @@ if __name__ == '__main__':
         mnist = input_data.read_data_sets(
             args.data_dir, dtype=tf.float32, one_hot=True)
         dtype = tf.float32
+    '''
+    mnist = input_data.read_data_sets(
+        args.data_dir, dtype=tf.float32, one_hot=True)
+    dtype = tf.float32
+
+    global_step = variable_scope.get_variable(  # this needs to be defined for tf.contrib.layers.optimize_loss()
+        "global_step", [],
+        trainable=False,
+        dtype=dtypes.int64,
+        initializer=init_ops.constant_initializer(0, dtype=dtypes.int64))
 
     x = tf.placeholder(dtype, [None, 784])
     phase = tf.placeholder(tf.bool, name='phase')
@@ -119,7 +139,7 @@ if __name__ == '__main__':
         tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y))
 
     l1_regularizer = tf.contrib.layers.l1_regularizer(scale=args.l1)
-    weights = tf.trainable_variables() # all vars of your graph
+    weights = tf.trainable_variables()  # all vars of your graph
     reg = tf.contrib.layers.apply_regularization(l1_regularizer, weights)
     total_loss = cross_entropy + reg
 
@@ -129,9 +149,15 @@ if __name__ == '__main__':
         with tf.control_dependencies(update_ops):
             # ensures that we execute the update_ops before performing the
             # train_op
-            train_op = tf.train.AdamOptimizer(0.01).minimize(total_loss)
+            #train_op = tf.train.AdamOptimizer(0.01).minimize(total_loss)
+            train_op = tf.contrib.layers.optimize_loss(
+                total_loss, global_step, learning_rate=0.01, optimizer='Adam', 
+                summaries=["gradients"])
     else:
-        train_op = tf.train.AdamOptimizer(0.01).minimize(total_loss)
+        #train_op = tf.train.AdamOptimizer(0.01).minimize(total_loss)
+        train_op = tf.contrib.layers.optimize_loss(
+                total_loss, global_step, learning_rate=0.01, optimizer='Adam', 
+                summaries=["gradients"])
 
     correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -157,23 +183,30 @@ if __name__ == '__main__':
 
         batch_xs, batch_ys = mnist.train.next_batch(args.batch_size)
 
+        '''
         if binary:
             __, loss = sess.run([train_op, total_loss], feed_dict={x: batch_xs.astype(
                 'int32'), y_: batch_ys.astype('int32'), phase: BN_TRAIN_PHASE})
         else:
             __, loss = sess.run([train_op, total_loss], feed_dict={
                                 x: batch_xs, y_: batch_ys, phase: BN_TRAIN_PHASE})
+        '''
+        __, loss = sess.run([train_op, total_loss], feed_dict={
+            x: batch_xs, y_: batch_ys, phase: BN_TRAIN_PHASE})
 
         if step % EVAL_EVERY_N_STEPS == 0:
 
-            test_batch_xs, test_batch_ys = mnist.test.next_batch(
-                args.batch_size)
+            #test_batch_xs, test_batch_ys = mnist.test.next_batch(args.batch_size)
+            '''
             if binary:
                 test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
                     x: mnist.test.images.astype('int32'), y_: mnist.test.labels.astype('int32'), phase: BN_TEST_PHASE})
             else:
                 test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
                     x: mnist.test.images, y_: mnist.test.labels, phase: BN_TEST_PHASE})
+            '''
+            test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
+                x: mnist.test.images, y_: mnist.test.labels, phase: BN_TEST_PHASE})
             print("step %d, loss = %.4f, test accuracy %.4f" %
                   (step, loss, test_acc))
 
@@ -181,6 +214,10 @@ if __name__ == '__main__':
             summary_writer.flush()
 
     # Test trained model
+    print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images,
+                                                                      y_: mnist.test.labels,
+                                                                      phase: BN_TEST_PHASE})))
+    '''
     if binary:
         print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images.astype('int32'),
                                                                           y_: mnist.test.labels.astype('int32')})))
@@ -192,3 +229,4 @@ if __name__ == '__main__':
         else:
             print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images,
                                                                               y_: mnist.test.labels})))
+    '''

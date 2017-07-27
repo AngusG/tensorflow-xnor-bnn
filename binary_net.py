@@ -14,9 +14,10 @@ def SignTheano(x):
 '''
 BN_EPSILON = 1e-4
 
+
 @tf.RegisterGradient("QuantizeGrad")
 def quantize_grad(op, grad):
-    return tf.clip_by_value(tf.identity(grad), 0, 1)
+    return tf.clip_by_value(tf.identity(grad), -1, 1)
 
 
 class BinaryNet:
@@ -66,10 +67,21 @@ class BinaryNet:
 
             with tf.name_scope('fc1_b') as scope:
 
+                # don't quantize weights in first layer
                 W_1 = self.init_layer('W_1', 784, self.n_hidden)
+                #Wb_1 = self.quantize(W_1)
                 self.w1_summ = tf.summary.histogram(name='W1_summ', values=W_1)
+                # self.wb1_summ = tf.summary.histogram(
+                #    name='Wb1_summ', values=Wb_1)
+
+                #x = self.input / 255.
+                '''
                 fc1 = tf.cast(self.quantize(
-                    tf.matmul(self.input, tf.cast(self.quantize(W_1), tf.int32))), tf.float32)
+                    tf.matmul(self.input, tf.cast(W_1, tf.int32))), tf.float32)
+                '''
+                fc1 = self.quantize(tf.matmul(self.input, W_1))
+                self.fc1_summ = tf.summary.histogram(
+                    name='a1_summ', values=fc1)
                 '''
                 fc1 = self.quantize(self.binary_tanh_unit(
                     tf.matmul(self.input, self.quantize(W_1))))
@@ -77,30 +89,50 @@ class BinaryNet:
             with tf.name_scope('fc2_b') as scope:
 
                 W_2 = self.init_layer('W_2', self.n_hidden, self.n_hidden)
+                Wb_2 = self.quantize(W_2)
                 self.w2_summ = tf.summary.histogram(name='W2_summ', values=W_2)
+                self.wb2_summ = tf.summary.histogram(
+                    name='Wb2_summ', values=Wb_2)
+
                 if self.fast:
-                    fc2 = self.quantize(self.binary_tanh_unit(
-                        xnor_gemm(fc1, self.quantize(W_2))))
+                    fc2 = self.quantize(
+                        self.binary_tanh_unit(xnor_gemm(fc1, Wb_2)))
                 else:
-                    fc2 = self.quantize(self.binary_tanh_unit(
-                        tf.matmul(fc1, self.quantize(W_2))))
+                    fc2 = tf.nn.relu(self.quantize(tf.matmul(fc1, Wb_2)))
+
+                self.fc2_summ = tf.summary.histogram(
+                    name='a2_summ', values=fc2)
 
             with tf.name_scope('fc3_b') as scope:
 
                 W_3 = self.init_layer('W_3', self.n_hidden, self.n_hidden)
+                Wb_3 = self.quantize(W_3)
                 self.w3_summ = tf.summary.histogram(name='W3_summ', values=W_3)
+                self.wb3_summ = tf.summary.histogram(
+                    name='Wb3_summ', values=Wb_3)
+
                 if self.fast:
                     fc3 = self.quantize(self.binary_tanh_unit(
-                        xnor_gemm(fc2, self.quantize(W_3))))
+                        xnor_gemm(fc2, Wb_3)))
                 else:
-                    fc3 = self.quantize(self.binary_tanh_unit(
-                        tf.matmul(fc2, self.quantize(W_3))))
+                    # fc3 = self.quantize(self.binary_tanh_unit(
+                    # don't quantize input (fc3) to last layer (fcout_b)
+                    fc3 = tf.matmul(fc2, Wb_3)
+                self.fc3_summ = tf.summary.histogram(
+                    name='a3_summ', values=fc3)
 
             with tf.name_scope('fcout_b') as scope:
 
                 W_out = self.init_layer('W_out', self.n_hidden, 10)
-                self.wout_summ = tf.summary.histogram(name='Wout_summ', values=W_out)
-                self.output = tf.matmul(fc3, self.quantize(W_out))
+                #Wb_out = self.quantize(W_out)
+                self.wout_summ = tf.summary.histogram(
+                    name='Wout_summ', values=W_out)
+                # self.wbout_summ = tf.summary.histogram(
+                #    name='Wbout_summ', values=Wb_out)
+
+                self.output = tf.matmul(fc3, W_out)
+                self.aout_summ = tf.summary.histogram(
+                    name='aout_summ', values=self.output)
         else:
 
             with tf.name_scope('fc1_fp') as scope:
@@ -133,7 +165,8 @@ class BinaryNet:
             with tf.name_scope('fcout_fp') as scope:
 
                 W_out = self.init_layer('W_out', self.n_hidden, 10)
-                self.wout_summ = tf.summary.histogram(name='Wout_summ', values=W_out)
+                self.wout_summ = tf.summary.histogram(
+                    name='Wout_summ', values=W_out)
                 self.output = tf.matmul(fc3, W_out)
                 if batch_norm:
                     self.output = tf.contrib.layers.batch_norm(

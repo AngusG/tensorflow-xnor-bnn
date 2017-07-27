@@ -100,7 +100,7 @@ class BinaryNet:
 
                 W_out = self.init_layer('W_out', self.n_hidden, 10)
                 self.wout_summ = tf.summary.histogram(name='Wout_summ', values=W_out)
-                self.output = tf.matmul(fc2, self.quantize(W_3))
+                self.output = tf.matmul(fc3, self.quantize(W_out))
         else:
 
             with tf.name_scope('fc1_fp') as scope:

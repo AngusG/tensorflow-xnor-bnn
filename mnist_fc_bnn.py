@@ -187,11 +187,7 @@ if __name__ == '__main__':
                 x: batch_xs, y_: batch_ys, phase: BN_TRAIN_PHASE})
 
     # Test trained model
-    if fast:
-        print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.next_batch(args.batch_size)[0],
-                                                                          y_: mnist.test.next_batch(args.batch_size)[1],
-                                                                          phase: BN_TEST_PHASE})))
-    else:
+    if not fast:
         print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images,
                                                                           y_: mnist.test.labels,
                                                                           phase: BN_TEST_PHASE})))

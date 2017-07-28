@@ -16,7 +16,6 @@ from tensorflow.python import debug as tf_debug
 import numpy as np
 import tensorflow as tf
 
-from tqdm import tqdm
 from binary_net import BinaryNet
 from utils import create_dir_if_not_exists
 
@@ -59,8 +58,6 @@ if __name__ == '__main__':
         '--summ', help="log summaries of weights, activations, gradients for viewing in TensorBoard", action="store_true")
     parser.add_argument(
         '--debug', help="run with tfdbg", action="store_true")
-    parser.add_argument(
-        '--timed', help="run speed benchmark", action="store_true")
     args = parser.parse_args()
 
     # handle command line args
@@ -91,8 +88,6 @@ if __name__ == '__main__':
         log_path += 'batch_norm/'
     else:
         batch_norm = False
-
-    timed = True if args.timed else False
 
     if args.summ:
         log_path += 'bs_' + str(args.batch_size)
@@ -161,7 +156,6 @@ if __name__ == '__main__':
         merge_op = tf.summary.merge_all()
 
     # Train
-    # if not timed:
     timing_arr = np.zeros(args.max_steps)
     for step in range(args.max_steps):
 
@@ -196,21 +190,11 @@ if __name__ == '__main__':
             if args.summ:
                 summary_writer.add_summary(merged_summ, step)
                 summary_writer.flush()
-    '''
-    else:
-        for step in tqdm(range(args.max_steps)):
-
-            batch_xs, batch_ys = mnist.train.next_batch(args.batch_size)
-
-            __, loss = sess.run([train_op, total_loss], feed_dict={
-                x: batch_xs, y_: batch_ys, phase: BN_TRAIN_PHASE})
-    '''
 
     # Test trained model
     if not fast:
         print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images,
                                                                           y_: mnist.test.labels,
                                                                           phase: BN_TEST_PHASE})))
-    if timed:
-        print("Avg ex/s = %.1f" % float(args.batch_size / np.mean(timing_arr)))
-        print("Med ex/s = %.1f" % float(args.batch_size / np.median(timing_arr)))
+    print("Avg ex/s = %.1f" % float(args.batch_size / np.mean(timing_arr)))
+    print("Med ex/s = %.1f" % float(args.batch_size / np.median(timing_arr)))

@@ -29,7 +29,6 @@ with tf.Session() as sess:
         ########### benchmark xnor ############
         start_time = time.time()
         xnor_gemm_result = sess.run(xnor_gemm, feed_dict={A: a, B: a})
-        #xnor_gemm_result = sess.run(xnor_gemm(a_f32, a_f32))
         xnor_timings[i] = time.time() - start_time
 
         print("xnor_gemm %d took %f" % (i, xnor_timings[i]))
@@ -40,7 +39,6 @@ with tf.Session() as sess:
         ########### benchmark matmul ##########
         start_time = time.time()
         matmul_result = sess.run(matmul, feed_dict={A: a, B: a})
-        #matmul_result = sess.run(tf.matmul(a_f32, a_f32))
         base_timings[i] = time.time() - start_time
 
         print("matmul %d took %f" % (i, base_timings[i]))

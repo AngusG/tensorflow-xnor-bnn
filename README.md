@@ -13,7 +13,7 @@ The project was tested with:
 
 ### 1 - Compile the gemm_op.so library
 1. Run `source setenv.sh` to set `TF_INC` variable with location to core tensorflow headers (you do not need to have source installed). 
-2. In project root run `mkdir libs`, this is where `gemm_op.so` will be placed.
+2. In project root run `mkdir obj libs`, this is where `gemm_op.so` will be placed.
 3. Run `make`. If you want to make changes to the op without changing the kernels, there is a `cpp` target to save time. 
 
 ### 2 - Confirm the op yields same results as tf.matmul()

@@ -46,8 +46,6 @@ if __name__ == '__main__':
         '--xnor', help="if binary flag is passed, determines if xnor_gemm cuda kernel is used to accelerate training, otherwise no effect", action="store_true")
     parser.add_argument(
         '--batch_norm', help="batch normalize activations", action="store_true")
-    #parser.add_argument(
-    #    '--summ', help="log summaries of weights, activations, gradients for viewing in TensorBoard", action="store_true")
     parser.add_argument(
         '--debug', help="run with tfdbg", action="store_true")
     args = parser.parse_args()

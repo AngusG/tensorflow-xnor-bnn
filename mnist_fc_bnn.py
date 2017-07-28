@@ -26,16 +26,8 @@ BN_TEST_PHASE = 0
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    '''
-    parser.add_argument(
-        'sub', help='sub-directory under --train_dir for logging events and checkpointing.   \
-        Would usually give a unique name (e.g initial learning rate used) so that tensorboard \
-        results are more easily interpreted')
-    '''
-    parser.add_argument('--data_dir', type=str, default='/scratch/gallowaa/mnist',
-                        help='directory for storing input data')
-    parser.add_argument('--train_dir', type=str, default='/scratch/gallowaa/logs/tf-bnn',
-                        help='root path for logging events and checkpointing')
+    parser.add_argument('data_dir', help='directory for storing input data')
+    parser.add_argument('--log_dir', help='root path for logging events and checkpointing')
     parser.add_argument(
         '--n_hidden', help='number of hidden units', type=int, default=512)
     parser.add_argument(
@@ -51,11 +43,11 @@ if __name__ == '__main__':
     parser.add_argument(
         '--binary', help="should weights and activations be constrained to -1, +1", action="store_true")
     parser.add_argument(
-        '--fast', help="if binary flag is passed, determines if xnor_gemm cuda kernel is used to accelerate training, otherwise no effect", action="store_true")
+        '--xnor', help="if binary flag is passed, determines if xnor_gemm cuda kernel is used to accelerate training, otherwise no effect", action="store_true")
     parser.add_argument(
         '--batch_norm', help="batch normalize activations", action="store_true")
-    parser.add_argument(
-        '--summ', help="log summaries of weights, activations, gradients for viewing in TensorBoard", action="store_true")
+    #parser.add_argument(
+    #    '--summ', help="log summaries of weights, activations, gradients for viewing in TensorBoard", action="store_true")
     parser.add_argument(
         '--debug', help="run with tfdbg", action="store_true")
     args = parser.parse_args()
@@ -65,21 +57,22 @@ if __name__ == '__main__':
         print("Using 1-bit weights and activations")
         binary = True
         sub_1 = '/bin/'
-        if args.fast:
-            print("Using fast xnor_gemm kernel")
-            fast = True
+        if args.xnor:
+            print("Using xnor xnor_gemm kernel")
+            xnor = True
             sub_2 = 'xnor/'
         else:
             sub_2 = 'matmul/'
-            fast = False
+            xnor = False
     else:
         sub_1 = '/fp/'
         sub_2 = ''
         binary = False
-        fast = False
+        xnor = False
 
-    log_path = args.train_dir + sub_1 + \
-        sub_2 + 'hid_' + str(args.n_hidden) + '/'
+    if args.log_dir:
+        log_path = args.log_dir + sub_1 + \
+            sub_2 + 'hid_' + str(args.n_hidden) + '/'
     if args.batch_norm:
         print("Using batch normalization")
         batch_norm = True
@@ -89,7 +82,7 @@ if __name__ == '__main__':
     else:
         batch_norm = False
 
-    if args.summ:
+    if args.log_dir:
         log_path += 'bs_' + str(args.batch_size)
         log_path = os.path.join(log_path, str(args.reg))
         log_path = create_dir_if_not_exists(log_path)
@@ -109,7 +102,7 @@ if __name__ == '__main__':
     phase = tf.placeholder(tf.bool, name='phase')
 
     # create the model
-    bnn = BinaryNet(binary, fast, args.n_hidden, x, batch_norm, phase)
+    bnn = BinaryNet(binary, xnor, args.n_hidden, x, batch_norm, phase)
     y = bnn.output
     y_ = tf.placeholder(tf.float32, [None, 10])
 
@@ -149,7 +142,7 @@ if __name__ == '__main__':
         sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
 
     # setup summary writer
-    if args.summ:
+    if args.log_dir:
         summary_writer = tf.summary.FileWriter(log_path, sess.graph)
         training_summary = tf.summary.scalar("train loss", total_loss)
         test_summary = tf.summary.scalar("test acc.", accuracy)
@@ -168,17 +161,17 @@ if __name__ == '__main__':
 
         if step % args.eval_every_n == 0:
 
-            if fast:
+            if xnor:
                 test_batch_xs, test_batch_ys = mnist.test.next_batch(
                     args.batch_size)
-                if args.summ:
+                if args.log_dir:
                     test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
                         x: test_batch_xs, y_: test_batch_ys, phase: BN_TEST_PHASE})
                 else:
                     test_acc = sess.run(accuracy, feed_dict={
                         x: test_batch_xs, y_: test_batch_ys, phase: BN_TEST_PHASE})
             else:
-                if args.summ:
+                if args.log_dir:
                     test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
                         x: mnist.test.images, y_: mnist.test.labels, phase: BN_TEST_PHASE})
                 else:
@@ -187,12 +180,12 @@ if __name__ == '__main__':
             print("step %d, loss = %.4f, test accuracy %.4f (%.1f ex/s)" %
                   (step, loss, test_acc, float(args.batch_size / timing_arr[step])))
 
-            if args.summ:
+            if args.log_dir:
                 summary_writer.add_summary(merged_summ, step)
                 summary_writer.flush()
 
     # Test trained model
-    if not fast:
+    if not xnor:
         print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images,
                                                                           y_: mnist.test.labels,
                                                                           phase: BN_TEST_PHASE})))

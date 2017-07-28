@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 import sys
+import time
 import os.path
 import argparse
 
@@ -12,6 +13,7 @@ from tensorflow.python.ops import init_ops
 from tensorflow.examples.tutorials.mnist import input_data
 from tensorflow.python import debug as tf_debug
 
+import numpy as np
 import tensorflow as tf
 
 from tqdm import tqdm
@@ -40,7 +42,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--reg', help='l1 regularization penalty', type=float, default=0.0001)
     parser.add_argument(
-        '--lr', help='learning rate', type=float, default=0.0001)
+        '--lr', help='learning rate', type=float, default=0.00001)
     parser.add_argument(
         '--batch_size', help='examples per mini-batch', type=int, default=100)
     parser.add_argument(
@@ -54,9 +56,11 @@ if __name__ == '__main__':
     parser.add_argument(
         '--batch_norm', help="batch normalize activations", action="store_true")
     parser.add_argument(
+        '--summ', help="log summaries of weights, activations, gradients for viewing in TensorBoard", action="store_true")
+    parser.add_argument(
         '--debug', help="run with tfdbg", action="store_true")
     parser.add_argument(
-        '--time', help="run speed benchmark", action="store_true")
+        '--timed', help="run speed benchmark", action="store_true")
     args = parser.parse_args()
 
     # handle command line args
@@ -88,11 +92,12 @@ if __name__ == '__main__':
     else:
         batch_norm = False
 
-    time = True if args.time else False
+    timed = True if args.timed else False
 
-    log_path += 'bs_' + str(args.batch_size)
-    log_path = os.path.join(log_path, str(args.reg))
-    log_path = create_dir_if_not_exists(log_path)
+    if args.summ:
+        log_path += 'bs_' + str(args.batch_size)
+        log_path = os.path.join(log_path, str(args.reg))
+        log_path = create_dir_if_not_exists(log_path)
 
     # import data
     mnist = input_data.read_data_sets(
@@ -149,35 +154,49 @@ if __name__ == '__main__':
         sess.add_tensor_filter("has_inf_or_nan", tf_debug.has_inf_or_nan)
 
     # setup summary writer
-    summary_writer = tf.summary.FileWriter(log_path, sess.graph)
-    training_summary = tf.summary.scalar("train loss", total_loss)
-    test_summary = tf.summary.scalar("test acc.", accuracy)
-    merge_op = tf.summary.merge_all()
+    if args.summ:
+        summary_writer = tf.summary.FileWriter(log_path, sess.graph)
+        training_summary = tf.summary.scalar("train loss", total_loss)
+        test_summary = tf.summary.scalar("test acc.", accuracy)
+        merge_op = tf.summary.merge_all()
 
     # Train
-    if not time:
-        for step in range(args.max_steps):
+    # if not timed:
+    timing_arr = np.zeros(args.max_steps)
+    for step in range(args.max_steps):
 
-            batch_xs, batch_ys = mnist.train.next_batch(args.batch_size)
+        batch_xs, batch_ys = mnist.train.next_batch(args.batch_size)
 
-            __, loss = sess.run([train_op, total_loss], feed_dict={
-                x: batch_xs, y_: batch_ys, phase: BN_TRAIN_PHASE})
+        start_time = time.time()
+        __, loss = sess.run([train_op, total_loss], feed_dict={
+            x: batch_xs, y_: batch_ys, phase: BN_TRAIN_PHASE})
+        timing_arr[step] = time.time() - start_time
 
-            if step % args.eval_every_n == 0:
+        if step % args.eval_every_n == 0:
 
-                if fast:
-                    test_batch_xs, test_batch_ys = mnist.test.next_batch(
-                        args.batch_size)
+            if fast:
+                test_batch_xs, test_batch_ys = mnist.test.next_batch(
+                    args.batch_size)
+                if args.summ:
                     test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
                         x: test_batch_xs, y_: test_batch_ys, phase: BN_TEST_PHASE})
                 else:
+                    test_acc = sess.run(accuracy, feed_dict={
+                        x: test_batch_xs, y_: test_batch_ys, phase: BN_TEST_PHASE})
+            else:
+                if args.summ:
                     test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
                         x: mnist.test.images, y_: mnist.test.labels, phase: BN_TEST_PHASE})
-                print("step %d, loss = %.4f, test accuracy %.4f" %
-                      (step, loss, test_acc))
+                else:
+                    test_acc = sess.run(accuracy, feed_dict={
+                        x: mnist.test.images, y_: mnist.test.labels, phase: BN_TEST_PHASE})
+            print("step %d, loss = %.4f, test accuracy %.4f (%.1f ex/s)" %
+                  (step, loss, test_acc, float(args.batch_size / timing_arr[step])))
 
+            if args.summ:
                 summary_writer.add_summary(merged_summ, step)
                 summary_writer.flush()
+    '''
     else:
         for step in tqdm(range(args.max_steps)):
 
@@ -185,9 +204,13 @@ if __name__ == '__main__':
 
             __, loss = sess.run([train_op, total_loss], feed_dict={
                 x: batch_xs, y_: batch_ys, phase: BN_TRAIN_PHASE})
+    '''
 
     # Test trained model
     if not fast:
         print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images,
                                                                           y_: mnist.test.labels,
                                                                           phase: BN_TEST_PHASE})))
+    if timed:
+        print("Avg ex/s = %.1f" % float(args.batch_size / np.mean(timing_arr)))
+        print("Med ex/s = %.1f" % float(args.batch_size / np.median(timing_arr)))

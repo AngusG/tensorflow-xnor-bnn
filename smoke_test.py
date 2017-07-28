@@ -3,8 +3,10 @@ import numpy as np
 import tensorflow as tf
 from gemm_op import xnor_gemm
 
-N = 8196
-N_RUNS = 5
+N = 1024
+N_RUNS = 20
+
+print("Running for %d runs with size %d" % (N_RUNS,N))
 
 A = tf.placeholder(tf.float32, [N, N])
 B = tf.placeholder(tf.float32, [N, N])
@@ -33,7 +35,6 @@ with tf.Session() as sess:
         print("xnor_gemm %d took %f" % (i, xnor_timings[i]))
         print(xnor_gemm_result)
         #######################################
-    print("Avg XNOR kernel execution time over %d runs: %f +/- %f" % (N_RUNS, xnor_timings.mean(), xnor_timings.std()))
 
     for i in range(N_RUNS):
         ########### benchmark matmul ##########
@@ -45,4 +46,9 @@ with tf.Session() as sess:
         print("matmul %d took %f" % (i, base_timings[i]))
         print(matmul_result)
         #######################################
-    print("Avg MatMul execution time over %d runs: %f +/- %f" % (N_RUNS, base_timings.mean(), base_timings.std()))
+
+    print("Avg XNOR   execution time over %d runs: %f +/- %f" % (N_RUNS-1, xnor_timings[1:].mean(), xnor_timings[1:].std()))
+    print("Avg MatMul execution time over %d runs: %f +/- %f" % (N_RUNS-1, base_timings[1:].mean(), base_timings[1:].std()))
+
+    print("Med XNOR   execution time over %d runs: %f +/- %f" % (N_RUNS-1, np.median(xnor_timings[1:]), xnor_timings[1:].std()))
+    print("Med MatMul execution time over %d runs: %f +/- %f" % (N_RUNS-1, np.median(base_timings[1:]), base_timings[1:].std()))

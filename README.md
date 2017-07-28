@@ -101,6 +101,8 @@ Med ex/s = 13472.4
 
 Passing the `log_dir` argument will automatically create a unique subfolder with a name based on the provided arguments (if all arguments are the same, a simple counter is incremented). The training/test loss/accuracy scalars are logged as well as histograms of weights (real valued and quantized, activations, and gradients). 
 
+![TensorBoard](img/tensorboard.png "TensorBoard")
+
 This command will run a simulated binary net (weights +/- 1 but using tf.matmul) and log to `/scratch/user/logs/tf-bnn/bin/matmul/hid_1024/batch_norm/bs_1024/0.0/1`
 ```
 python mnist_fc_bnn.py /path/to/mnist/ --log_dir /scratch/user/logs/tf-bnn --batch_size 1024 --n_hidden 1024 --reg 0 --batch_norm --lr 0.00001 --binary

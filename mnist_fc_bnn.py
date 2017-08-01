@@ -27,11 +27,12 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('data_dir', help='directory for storing input data')
-    parser.add_argument('--log_dir', help='root path for logging events and checkpointing')
+    parser.add_argument(
+        '--log_dir', help='root path for logging events and checkpointing')
     parser.add_argument(
         '--n_hidden', help='number of hidden units', type=int, default=512)
     parser.add_argument(
-        '--reg', help='l1 regularization penalty', type=float, default=0.0001)
+        '--keep_prob', help='dropout keep_prob', type=float, default=0.8)
     parser.add_argument(
         '--lr', help='learning rate', type=float, default=0.00001)
     parser.add_argument(
@@ -69,14 +70,15 @@ if __name__ == '__main__':
         xnor = False
 
     if args.log_dir:
-        log_path = args.log_dir + sub_1 + \
-            sub_2 + 'hid_' + str(args.n_hidden) + '/'
+        log_path = args.log_dir + sub_1 + sub_2 + 'hid_' + str(args.n_hidden) + '/'
+
     if args.batch_norm:
         print("Using batch normalization")
         batch_norm = True
         alpha = 0.1
         epsilon = 1e-4
-        log_path += 'batch_norm/'
+        if args.log_dir:
+            log_path += 'batch_norm/'
     else:
         batch_norm = False
 
@@ -98,20 +100,21 @@ if __name__ == '__main__':
 
     x = tf.placeholder(dtype, [None, 784])
     phase = tf.placeholder(tf.bool, name='phase')
+    keep_prob = tf.placeholder(tf.float32)
 
     # create the model
-    bnn = BinaryNet(binary, xnor, args.n_hidden, x, batch_norm, phase)
+    bnn = BinaryNet(binary, xnor, args.n_hidden, keep_prob, x, batch_norm, phase)
     y = bnn.output
     y_ = tf.placeholder(tf.float32, [None, 10])
 
     # define loss and optimizer
-    cross_entropy = tf.reduce_mean(
+    total_loss = tf.reduce_mean(
         tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y))
 
-    l1_regularizer = tf.contrib.layers.l1_regularizer(scale=args.reg)
-    weights = tf.trainable_variables()  # all vars of your graph
-    reg = tf.contrib.layers.apply_regularization(l1_regularizer, weights)
-    total_loss = cross_entropy + reg
+    #l1_regularizer = tf.contrib.layers.l1_regularizer(scale=args.reg)
+    #weights = tf.trainable_variables()  # all vars of your graph
+    #reg = tf.contrib.layers.apply_regularization(l1_regularizer, weights)
+    #total_loss = cross_entropy + reg
 
     # for batch-normalization
     if batch_norm:
@@ -154,7 +157,7 @@ if __name__ == '__main__':
 
         start_time = time.time()
         __, loss = sess.run([train_op, total_loss], feed_dict={
-            x: batch_xs, y_: batch_ys, phase: BN_TRAIN_PHASE})
+            x: batch_xs, y_: batch_ys, keep_prob: args.keep_prob, phase: BN_TRAIN_PHASE})
         timing_arr[step] = time.time() - start_time
 
         if step % args.eval_every_n == 0:
@@ -164,17 +167,17 @@ if __name__ == '__main__':
                     args.batch_size)
                 if args.log_dir:
                     test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
-                        x: test_batch_xs, y_: test_batch_ys, phase: BN_TEST_PHASE})
+                        x: test_batch_xs, y_: test_batch_ys, keep_prob: 1.0, phase: BN_TEST_PHASE})
                 else:
                     test_acc = sess.run(accuracy, feed_dict={
                         x: test_batch_xs, y_: test_batch_ys, phase: BN_TEST_PHASE})
             else:
                 if args.log_dir:
                     test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
-                        x: mnist.test.images, y_: mnist.test.labels, phase: BN_TEST_PHASE})
+                        x: mnist.test.images, y_: mnist.test.labels, keep_prob: 1.0, phase: BN_TEST_PHASE})
                 else:
                     test_acc = sess.run(accuracy, feed_dict={
-                        x: mnist.test.images, y_: mnist.test.labels, phase: BN_TEST_PHASE})
+                        x: mnist.test.images, y_: mnist.test.labels, keep_prob: 1.0, phase: BN_TEST_PHASE})
             print("step %d, loss = %.4f, test accuracy %.4f (%.1f ex/s)" %
                   (step, loss, test_acc, float(args.batch_size / timing_arr[step])))
 
@@ -186,6 +189,7 @@ if __name__ == '__main__':
     if not xnor:
         print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images,
                                                                           y_: mnist.test.labels,
+                                                                          keep_prob: 1.0,
                                                                           phase: BN_TEST_PHASE})))
     print("Avg ex/s = %.1f" % float(args.batch_size / np.mean(timing_arr)))
     print("Med ex/s = %.1f" % float(args.batch_size / np.median(timing_arr)))

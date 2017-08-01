@@ -11,10 +11,11 @@ def quantize_grad(op, grad):
 
 class BinaryNet:
 
-    def __init__(self, binary, fast, n_hidden, x, batch_norm, phase):
+    def __init__(self, binary, fast, n_hidden, keep_prob, x, batch_norm, phase):
         self.binary = binary
         self.fast = fast
         self.n_hidden = n_hidden
+        self.keep_prob = keep_prob
         self.input = x
         self.G = tf.get_default_graph()
         self.dense_layers(batch_norm, phase)
@@ -48,7 +49,7 @@ class BinaryNet:
                 W_1 = self.init_layer('W_1', 784, self.n_hidden)
                 self.w1_summ = tf.summary.histogram(name='W1_summ', values=W_1)
 
-                fc1 = self.quantize(tf.matmul(self.input, W_1))
+                fc1 = tf.nn.dropout(self.quantize(tf.matmul(self.input, W_1)), self.keep_prob)
                 self.fc1_summ = tf.summary.histogram(
                     name='a1_summ', values=fc1)
 
@@ -61,9 +62,9 @@ class BinaryNet:
                     name='Wb2_summ', values=Wb_2)
 
                 if self.fast:
-                    fc2 = self.quantize(xnor_gemm(fc1, Wb_2))
+                    fc2 = tf.nn.dropout(self.quantize(xnor_gemm(fc1, Wb_2)), self.keep_prob)
                 else:
-                    fc2 = self.quantize(tf.matmul(fc1, Wb_2))
+                    fc2 = tf.nn.dropout(self.quantize(tf.matmul(fc1, Wb_2)), self.keep_prob)
 
                 self.fc2_summ = tf.summary.histogram(
                     name='a2_summ', values=fc2)
@@ -78,9 +79,9 @@ class BinaryNet:
 
                 # don't quantize input (fc3) to last layer (fcout_b)
                 if self.fast:
-                    fc3 = xnor_gemm(fc2, Wb_3)
+                    fc3 = tf.nn.dropout(xnor_gemm(fc2, Wb_3), self.keep_prob)
                 else:
-                    fc3 = tf.matmul(fc2, Wb_3)
+                    fc3 = tf.nn.dropout(tf.matmul(fc2, Wb_3), self.keep_prob)
                 self.fc3_summ = tf.summary.histogram(
                     name='a3_summ', values=fc3)
 
@@ -99,7 +100,7 @@ class BinaryNet:
 
                 W_1 = self.init_layer('W_1', 784, self.n_hidden)
                 self.w1_summ = tf.summary.histogram(name='W1_summ', values=W_1)
-                fc1 = tf.nn.relu(tf.matmul(self.input, W_1))
+                fc1 = tf.nn.dropout(tf.nn.relu(tf.matmul(self.input, W_1)), self.keep_prob)
                 if batch_norm:
                     fc1 = tf.contrib.layers.batch_norm(
                         fc1, center=True, scale=True, epsilon=BN_EPSILON, is_training=phase)
@@ -108,7 +109,7 @@ class BinaryNet:
 
                 W_2 = self.init_layer('W_2', self.n_hidden, self.n_hidden)
                 self.w2_summ = tf.summary.histogram(name='W2_summ', values=W_2)
-                fc2 = tf.nn.relu(tf.matmul(fc1, W_2))
+                fc2 = tf.nn.dropout(tf.nn.relu(tf.matmul(fc1, W_2)), self.keep_prob)
                 if batch_norm:
                     fc2 = tf.contrib.layers.batch_norm(
                         fc2, center=True, scale=True, epsilon=BN_EPSILON, is_training=phase)
@@ -117,7 +118,7 @@ class BinaryNet:
 
                 W_3 = self.init_layer('W_3', self.n_hidden, self.n_hidden)
                 self.w3_summ = tf.summary.histogram(name='W3_summ', values=W_3)
-                fc3 = tf.nn.relu(tf.matmul(fc2, W_3))
+                fc3 = tf.nn.dropout(tf.nn.relu(tf.matmul(fc2, W_3)), self.keep_prob)
                 if batch_norm:
                     fc3 = tf.contrib.layers.batch_norm(
                         fc3, center=True, scale=True, epsilon=BN_EPSILON, is_training=phase)

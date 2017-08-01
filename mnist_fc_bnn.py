@@ -134,6 +134,8 @@ if __name__ == '__main__':
     correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
+    saver = tf.train.Saver(tf.trainable_variables())
+
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
 
@@ -193,3 +195,8 @@ if __name__ == '__main__':
                                                                           phase: BN_TEST_PHASE})))
     print("Avg ex/s = %.1f" % float(args.batch_size / np.mean(timing_arr)))
     print("Med ex/s = %.1f" % float(args.batch_size / np.median(timing_arr)))
+
+    # save model checkpoint
+    checkpoint_path = os.path.join(outpath, 'model.ckpt')
+    saver.save(sess, checkpoint_path, global_step=step)
+    sess.close()

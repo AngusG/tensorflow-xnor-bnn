@@ -19,12 +19,13 @@ import tensorflow as tf
 from binary_conv_net import BinaryConvNet
 from utils import create_dir_if_not_exists
 
+BN_TRAIN_PHASE = True
+BN_TEST_PHASE = False
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--data_dir', help='directory for storing input data', default='/scratch/gallowaa/mnist')
+    parser.add_argument('data_dir', help='directory for storing input data')
     parser.add_argument(
         '--log_dir', help='root path for logging events and checkpointing')
     parser.add_argument(
@@ -168,7 +169,7 @@ if __name__ == '__main__':
 
             start_time = time.time()
             __, loss = sess.run([train_op, total_loss], feed_dict={
-                x: batch_xs, y_: batch_ys, keep_prob: args.keep_prob, phase: True})
+                x: batch_xs, y_: batch_ys, keep_prob: args.keep_prob, phase: BN_TRAIN_PHASE})
             timing_arr[step - init_step] = time.time() - start_time
 
             if step > args.eval_every_n and step % args.eval_every_n == 0:
@@ -181,17 +182,17 @@ if __name__ == '__main__':
                     test_batch_ys = test_batch_ys.reshape(args.batch_size, 10)
                     if args.log_dir:
                         test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
-                            x: test_batch_xs, y_: test_batch_ys, keep_prob: 1.0, phase: False})
+                            x: test_batch_xs, y_: test_batch_ys, keep_prob: 1.0, phase: BN_TEST_PHASE})
                     else:
                         test_acc = sess.run(accuracy, feed_dict={
-                            x: test_batch_xs, y_: test_batch_ys, phase: False})
+                            x: test_batch_xs, y_: test_batch_ys, phase: BN_TEST_PHASE})
                 else:
                     if args.log_dir:
                         test_acc, merged_summ = sess.run([accuracy, merge_op], feed_dict={
-                            x: mnist.test.images.reshape(10000, 28, 28, 1), y_: mnist.test.labels.reshape(10000, 10), keep_prob: 1.0, phase: False})
+                            x: mnist.test.images.reshape(10000, 28, 28, 1), y_: mnist.test.labels.reshape(10000, 10), keep_prob: 1.0, phase: BN_TEST_PHASE})
                     else:
                         test_acc = sess.run(accuracy, feed_dict={
-                            x: mnist.test.images.reshape(10000, 28, 28, 1), y_: mnist.test.labels.reshape(10000, 10), keep_prob: 1.0, phase: False})
+                            x: mnist.test.images.reshape(10000, 28, 28, 1), y_: mnist.test.labels.reshape(10000, 10), keep_prob: 1.0, phase: BN_TEST_PHASE})
                 print("step %d, loss = %.4f, test accuracy %.4f (%.1f ex/s)" %
                       (step, loss, test_acc, float(args.batch_size / timing_arr[step - init_step])))
 
@@ -205,7 +206,7 @@ if __name__ == '__main__':
             print("Final test accuracy %.4f" % (sess.run(accuracy, feed_dict={x: mnist.test.images.reshape(10000, 28, 28, 1),
                                                                               y_: mnist.test.labels.reshape(10000, 10),
                                                                               keep_prob: 1.0,
-                                                                              phase: False})))
+                                                                              phase: BN_TEST_PHASE})))
         print("Avg ex/s = %.1f" % float(args.batch_size / np.mean(timing_arr)))
         print("Med ex/s = %.1f" %
               float(args.batch_size / np.median(timing_arr)))

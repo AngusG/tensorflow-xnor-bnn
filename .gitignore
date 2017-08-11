@@ -33,3 +33,4 @@
 .nfs*
 
 __pycache__
+*.pyc

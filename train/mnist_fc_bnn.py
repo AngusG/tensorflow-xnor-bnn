@@ -19,8 +19,8 @@ import tensorflow as tf
 from binary_net import BinaryNet
 from utils import create_dir_if_not_exists
 
-BN_TRAIN_PHASE = 1
-BN_TEST_PHASE = 0
+BN_TRAIN_PHASE = False
+BN_TEST_PHASE = True
 
 
 if __name__ == '__main__':

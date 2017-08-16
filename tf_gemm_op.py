@@ -2,7 +2,8 @@ import tensorflow as tf
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import math_ops
 
-gemm_module = tf.load_op_library('./libs/gemm_op.so')
+gemm_module = tf.load_op_library(
+    tf.resource_loader.get_path_to_datafile('./libs/gemm_op.so'))
 xnor_gemm = gemm_module.gemm
 
 

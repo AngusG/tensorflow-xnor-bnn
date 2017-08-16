@@ -16,7 +16,7 @@ from tensorflow.python import debug as tf_debug
 import numpy as np
 import tensorflow as tf
 
-from binary_net import BinaryNet
+from models.binary_net import BinaryNet
 from utils import create_dir_if_not_exists
 
 BN_TRAIN_PHASE = False

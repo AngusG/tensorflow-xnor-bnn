@@ -1,5 +1,4 @@
 import tensorflow as tf
-from tf_gemm_op import xnor_gemm
 
 BN_EPSILON = 1e-5
 H = 0

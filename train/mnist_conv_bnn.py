@@ -29,9 +29,13 @@ if __name__ == '__main__':
     parser.add_argument(
         '--log_dir', help='root path for logging events and checkpointing')
     parser.add_argument(
+        '--extra', help='for specifying extra details (e.g one-off experiments)')
+    parser.add_argument(
         '--n_hidden', help='number of hidden units', type=int, default=512)
     parser.add_argument(
         '--keep_prob', help='dropout keep_prob', type=float, default=0.8)
+    parser.add_argument(
+        '--reg', help='how much to push weights to +1/-1', type=float, default=0.5)
     parser.add_argument(
         '--lr', help='learning rate', type=float, default=1e-5)
     parser.add_argument(
@@ -91,7 +95,9 @@ if __name__ == '__main__':
 
     if args.log_dir:
         log_path += 'bs_' + str(args.batch_size) + '/keep_' + \
-            str(args.keep_prob) + '/lr_' + str(args.lr)
+            str(args.keep_prob) + '/reg_' + \
+            str(args.reg) + '/lr_' + str(args.lr) + '/' + \
+            args.extra
         log_path = create_dir_if_not_exists(log_path)
 
     # import data
@@ -111,9 +117,12 @@ if __name__ == '__main__':
         y = bnn.output
         y_ = tf.placeholder(tf.float32, [None, 10])
 
+        #weight_penalty = bnn.W_conv1_p + bnn.W_conv2_p + bnn.W_fc1_p + bnn.W_fc2_p
+        weight_penalty = bnn.W_conv2_p
+
         # define loss and optimizer
         total_loss = tf.reduce_mean(
-            tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y))
+            tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y)) + args.reg * weight_penalty
 
         # for batch-normalization
         if batch_norm:

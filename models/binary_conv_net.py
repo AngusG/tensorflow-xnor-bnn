@@ -94,6 +94,7 @@ class BinaryConvNet:
             with tf.name_scope('conv1_bin') as scope:
                 # don't quantize first layer
                 W_conv1 = self.weight_variable([5, 5, 1, 32])
+                #self.W_conv1_p = tf.reduce_sum(1.0 - tf.square(W_conv1))
                 self.W_conv1_summ = tf.summary.histogram(name='W_conv1_summ', values=W_conv1)
 
                 h_conv1 = tf.nn.relu(self.conv2d(self.input, W_conv1))
@@ -104,6 +105,8 @@ class BinaryConvNet:
             with tf.name_scope('conv2_bin') as scope:
 
                 W_conv2 = self.weight_variable([5, 5, 32, 64])
+                self.W_conv2_summ = tf.summary.histogram(name='W_conv2_summ', values=W_conv2)
+                self.W_conv2_p = tf.reduce_sum(1.0 - tf.square(W_conv2))
 
                 shape = tf.shape(h_pool1)
 
@@ -145,6 +148,8 @@ class BinaryConvNet:
             with tf.name_scope('fc1_bin') as scope:
 
                 W_fc1 = self.weight_variable([7 * 7 * 64, self.n_hidden])
+                self.W_fc1_summ = tf.summary.histogram(name='W_fc1_summ', values=W_fc1)
+                self.W_fc1_p = tf.reduce_sum(1.0 - tf.square(W_fc1))
                 Wb_fc1 = self.quantize(W_fc1)
                 self.Wb_fc1_summ = tf.summary.histogram(
                     name='Wb_fc1_summ', values=Wb_fc1)
@@ -157,6 +162,8 @@ class BinaryConvNet:
             with tf.name_scope('fcout_bin') as scope:
 
                 W_fc2 = self.weight_variable([self.n_hidden, 10])
+                #self.W_fc2_summ = tf.summary.histogram(name='W_fc2_summ', values=W_fc2)
+                #self.W_fc2_p = tf.reduce_sum(1.0 - tf.square(W_fc2))
                 self.W_fc2_summ = tf.summary.histogram(
                     name='W_fc2_summ', values=W_fc2)
                 h_fc1_drop = tf.nn.dropout(h_fc1, self.keep_prob)

@@ -19,8 +19,8 @@ import tensorflow as tf
 from models.binary_net import BinaryNet
 from utils import create_dir_if_not_exists
 
-BN_TRAIN_PHASE = False
-BN_TEST_PHASE = True
+BN_TRAIN_PHASE = True
+BN_TEST_PHASE = False
 
 
 if __name__ == '__main__':
@@ -30,19 +30,27 @@ if __name__ == '__main__':
     parser.add_argument(
         '--log_dir', help='root path for logging events and checkpointing')
     parser.add_argument(
+        '--extra', help='for specifying extra details (e.g one-off experiments)')
+    parser.add_argument(
         '--n_hidden', help='number of hidden units', type=int, default=512)
     parser.add_argument(
         '--keep_prob', help='dropout keep_prob', type=float, default=0.8)
     parser.add_argument(
-        '--lr', help='learning rate', type=float, default=1e-4)
+        '--reg', help='how much to push weights to +1/-1', type=float, default=0.5)
     parser.add_argument(
-        '--batch_size', help='examples per mini-batch', type=int, default=100)
+        '--lr', help='learning rate', type=float, default=1e-5)
+    parser.add_argument(
+        '--batch_size', help='examples per mini-batch', type=int, default=128)
     parser.add_argument(
         '--max_steps', help='maximum training steps', type=int, default=1000)
+    parser.add_argument(
+        '--gpu', help='physical id of GPUs to use')
     parser.add_argument(
         '--eval_every_n', help='validate model every n steps', type=int, default=100)
     parser.add_argument(
         '--binary', help="should weights and activations be constrained to -1, +1", action="store_true")
+    parser.add_argument(
+        '--last', help="also binarize last layer", action="store_true")
     parser.add_argument(
         '--xnor', help="if binary flag is passed, determines if xnor_gemm cuda kernel is used to accelerate training, otherwise no effect", action="store_true")
     parser.add_argument(
@@ -53,11 +61,19 @@ if __name__ == '__main__':
         '--restore', help='where to load model checkpoints from')
     args = parser.parse_args()
 
+    if args.gpu:
+        os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+
     # handle command line args
     if args.binary:
         print("Using 1-bit weights and activations")
         binary = True
-        sub_1 = '/bin/'
+        if args.last:
+            last = True
+            sub_1 = '/bin_last/'
+        else:
+            last = False
+            sub_1 = '/bin/'
         if args.xnor:
             print("Using xnor xnor_gemm kernel")
             xnor = True
@@ -78,16 +94,18 @@ if __name__ == '__main__':
     if args.batch_norm:
         print("Using batch normalization")
         batch_norm = True
-        alpha = 0.1
-        epsilon = 1e-4
         if args.log_dir:
             log_path += 'batch_norm/'
     else:
         batch_norm = False
 
     if args.log_dir:
-        log_path += 'bs_' + str(args.batch_size)
-        log_path = os.path.join(log_path, str(args.keep_prob))
+        log_path += 'bs_' + str(args.batch_size) + '/keep_' + \
+            str(args.keep_prob) + '/lr_' + str(args.lr)
+        if binary:
+            log_path += '/reg_' + str(args.reg)
+        if args.extra:
+            log_path += '/' + args.extra
         log_path = create_dir_if_not_exists(log_path)
 
     # import data
@@ -102,20 +120,26 @@ if __name__ == '__main__':
         keep_prob = tf.placeholder(tf.float32)
 
         # create the model
-        bnn = BinaryNet(binary, xnor, args.n_hidden,
+        bnn = BinaryNet(binary, last, xnor, args.n_hidden,
                         keep_prob, x, batch_norm, phase)
         y = bnn.output
         y_ = tf.placeholder(tf.float32, [None, 10])
 
         # define loss and optimizer
-        total_loss = tf.reduce_mean(
-            tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y))
+        if binary:
+            weight_penalty = bnn.W_2_p + bnn.W_3_p + bnn.W_out_p
+            total_loss = tf.reduce_mean(
+                tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y)) + args.reg * weight_penalty
+        else:
+            total_loss = tf.reduce_mean(
+                tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y))
 
         # for batch-normalization
         if batch_norm:
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
             with tf.control_dependencies(update_ops):
-                # ensures that we execute the update_ops before performing the train_op
+                # ensures that we execute the update_ops before performing the
+                # train_op
                 train_op = tf.contrib.layers.optimize_loss(
                     total_loss, global_step, learning_rate=args.lr, optimizer='Adam',
                     summaries=["gradients"])
@@ -146,7 +170,7 @@ if __name__ == '__main__':
 
         if args.restore:
             saver.restore(sess, tf.train.latest_checkpoint(args.restore))
-                #os.path.join(log_path, args.restore)))
+            # os.path.join(log_path, args.restore)))
             init_step = sess.run(global_step)
             print('Restoring network previously trained to step %d' % init_step)
         else:
@@ -162,7 +186,7 @@ if __name__ == '__main__':
             start_time = time.time()
             __, loss = sess.run([train_op, total_loss], feed_dict={
                 x: batch_xs, y_: batch_ys, keep_prob: args.keep_prob, phase: BN_TRAIN_PHASE})
-            timing_arr[step-init_step] = time.time() - start_time
+            timing_arr[step - init_step] = time.time() - start_time
 
             if step % args.eval_every_n == 0:
 
@@ -183,7 +207,7 @@ if __name__ == '__main__':
                         test_acc = sess.run(accuracy, feed_dict={
                             x: mnist.test.images, y_: mnist.test.labels, keep_prob: 1.0, phase: BN_TEST_PHASE})
                 print("step %d, loss = %.4f, test accuracy %.4f (%.1f ex/s)" %
-                      (step, loss, test_acc, float(args.batch_size / timing_arr[step-init_step])))
+                      (step, loss, test_acc, float(args.batch_size / timing_arr[step - init_step])))
 
                 if args.log_dir:
                     summary_writer.add_summary(merged_summ, step)
@@ -197,7 +221,8 @@ if __name__ == '__main__':
                                                                               keep_prob: 1.0,
                                                                               phase: BN_TEST_PHASE})))
         print("Avg ex/s = %.1f" % float(args.batch_size / np.mean(timing_arr)))
-        print("Med ex/s = %.1f" % float(args.batch_size / np.median(timing_arr)))
+        print("Med ex/s = %.1f" %
+              float(args.batch_size / np.median(timing_arr)))
 
         if args.log_dir:
             # save model checkpoint

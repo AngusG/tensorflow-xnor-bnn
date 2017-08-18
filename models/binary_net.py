@@ -52,10 +52,11 @@ class BinaryNet:
                 fc1 = tf.nn.dropout(tf.matmul(self.input, W_1), self.keep_prob)
                 fc1 = tf.contrib.layers.batch_norm(
                     fc1, decay=0.9, center=False, scale=False, epsilon=BN_EPSILON, is_training=phase)
+                self.a1_fp_summ = tf.summary.histogram(
+                    name='a1_fp_summ', values=fc1)
                 fc1 = self.quantize(fc1)
-
-                self.fc1_summ = tf.summary.histogram(
-                    name='a1_summ', values=fc1)
+                self.a1_bin_summ = tf.summary.histogram(
+                    name='a1_bin_summ', values=fc1)
 
             with tf.name_scope('fc2_b') as scope:
 
@@ -74,10 +75,11 @@ class BinaryNet:
 
                 fc2 = tf.contrib.layers.batch_norm(
                     fc2, decay=0.9, center=False, scale=False, epsilon=BN_EPSILON, is_training=phase)
+                self.a2_fp_summ = tf.summary.histogram(
+                    name='a2_fp_summ', values=fc2)
                 fc2 = self.quantize(fc2)
-
-                self.fc2_summ = tf.summary.histogram(
-                    name='a2_summ', values=fc2)
+                self.a2_bin_summ = tf.summary.histogram(
+                    name='a2_bin_summ', values=fc2)
 
             with tf.name_scope('fc3_b') as scope:
 
@@ -99,9 +101,11 @@ class BinaryNet:
                 # only quantize input to last layer if received 'last' flag
                 if last:
                     fc3 = self.quantize(fc3)
-
-                self.fc3_summ = tf.summary.histogram(
-                    name='a3_summ', values=fc3)
+                    name='a3_bin_summ'
+                else:
+                    name='a3_fp_summ'
+                    
+                self.a3_summ = tf.summary.histogram(name=name, values=fc3)
 
             with tf.name_scope('fcout_b') as scope:
 

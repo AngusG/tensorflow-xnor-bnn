@@ -17,7 +17,7 @@ import numpy as np
 import tensorflow as tf
 
 from models.binary_net import BinaryNet
-from utils import create_dir_if_not_exists
+from utils import handle_args
 
 BN_TRAIN_PHASE = True
 BN_TEST_PHASE = False
@@ -64,49 +64,7 @@ if __name__ == '__main__':
     if args.gpu:
         os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
-    # handle command line args
-    if args.binary:
-        print("Using 1-bit weights and activations")
-        binary = True
-        if args.last:
-            last = True
-            sub_1 = '/bin_last/'
-        else:
-            last = False
-            sub_1 = '/bin/'
-        if args.xnor:
-            print("Using xnor xnor_gemm kernel")
-            xnor = True
-            sub_2 = 'xnor/'
-        else:
-            sub_2 = 'matmul/'
-            xnor = False
-    else:
-        sub_1 = '/fp/'
-        sub_2 = ''
-        binary = False
-        xnor = False
-
-    if args.log_dir:
-        log_path = args.log_dir + sub_1 + sub_2 + \
-            'hid_' + str(args.n_hidden) + '/'
-
-    if args.batch_norm:
-        print("Using batch normalization")
-        batch_norm = True
-        if args.log_dir:
-            log_path += 'batch_norm/'
-    else:
-        batch_norm = False
-
-    if args.log_dir:
-        log_path += 'bs_' + str(args.batch_size) + '/keep_' + \
-            str(args.keep_prob) + '/lr_' + str(args.lr)
-        if binary:
-            log_path += '/reg_' + str(args.reg)
-        if args.extra:
-            log_path += '/' + args.extra
-        log_path = create_dir_if_not_exists(log_path)
+    log_path, binary, last, xnor, batch_norm = handle_args(args)
 
     # import data
     mnist = input_data.read_data_sets(

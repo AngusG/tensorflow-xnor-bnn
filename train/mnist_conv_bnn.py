@@ -61,44 +61,7 @@ if __name__ == '__main__':
     if args.gpu:
         os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
-    # handle command line args
-    if args.binary:
-        print("Using 1-bit weights and activations")
-        binary = True
-        sub_1 = '/bin/'
-        if args.xnor:
-            print("Using xnor xnor_gemm kernel")
-            xnor = True
-            sub_2 = 'xnor/'
-        else:
-            sub_2 = 'matmul/'
-            xnor = False
-    else:
-        sub_1 = '/fp/'
-        sub_2 = ''
-        binary = False
-        xnor = False
-
-    if args.log_dir:
-        log_path = args.log_dir + sub_1 + sub_2 + \
-            'hid_' + str(args.n_hidden) + '/'
-
-    if args.batch_norm:
-        print("Using batch normalization")
-        batch_norm = True
-        alpha = 0.1
-        epsilon = 1e-4
-        if args.log_dir:
-            log_path += 'batch_norm/'
-    else:
-        batch_norm = False
-
-    if args.log_dir:
-        log_path += 'bs_' + str(args.batch_size) + '/keep_' + \
-            str(args.keep_prob) + '/reg_' + \
-            str(args.reg) + '/lr_' + str(args.lr) + '/' + \
-            args.extra
-        log_path = create_dir_if_not_exists(log_path)
+    log_path, binary, last, xnor, batch_norm = handle_args(args)
 
     # import data
     mnist = input_data.read_data_sets(
@@ -121,8 +84,13 @@ if __name__ == '__main__':
         weight_penalty = bnn.W_conv2_p
 
         # define loss and optimizer
-        total_loss = tf.reduce_mean(
-            tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y)) + args.reg * weight_penalty
+        if binary:
+            weight_penalty = bnn.W_2_p + bnn.W_3_p
+            total_loss = tf.reduce_mean(
+                tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y)) + args.reg * weight_penalty
+        else:
+            total_loss = tf.reduce_mean(
+                tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y))
 
         # for batch-normalization
         if batch_norm:

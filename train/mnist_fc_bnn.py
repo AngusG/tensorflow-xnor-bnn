@@ -50,7 +50,9 @@ if __name__ == '__main__':
     parser.add_argument(
         '--binary', help="should weights and activations be constrained to -1, +1", action="store_true")
     parser.add_argument(
-        '--last', help="also binarize last layer", action="store_true")
+        '--first', help="also binarize first layer (requires --binary)", action="store_true")
+    parser.add_argument(
+        '--last', help="also binarize last layer (requires --binary)", action="store_true")
     parser.add_argument(
         '--xnor', help="if binary flag is passed, determines if xnor_gemm cuda kernel is used to accelerate training, otherwise no effect", action="store_true")
     parser.add_argument(
@@ -64,7 +66,7 @@ if __name__ == '__main__':
     if args.gpu:
         os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
-    log_path, binary, last, xnor, batch_norm = handle_args(args)
+    log_path, binary, first, last, xnor, batch_norm = handle_args(args)
 
     # import data
     mnist = input_data.read_data_sets(
@@ -78,14 +80,18 @@ if __name__ == '__main__':
         keep_prob = tf.placeholder(tf.float32)
 
         # create the model
-        bnn = BinaryNet(binary, last, xnor, args.n_hidden,
+        bnn = BinaryNet(binary, first, last, xnor, args.n_hidden,
                         keep_prob, x, batch_norm, phase)
         y = bnn.output
         y_ = tf.placeholder(tf.float32, [None, 10])
 
         # define loss and optimizer
         if binary:
-            weight_penalty = bnn.W_2_p + bnn.W_3_p + bnn.W_out_p
+            weight_penalty = bnn.W_2_p + bnn.W_3_p
+            if first:
+                weight_penalty += bnn.W_1_p
+            if last:
+                weight_penalty += bnn.W_out_p
             total_loss = tf.reduce_mean(
                 tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y)) + args.reg * weight_penalty
         else:

@@ -11,14 +11,14 @@ def quantize_grad(op, grad):
 
 class BinaryNet:
 
-    def __init__(self, binary, last, xnor, n_hidden, keep_prob, x, batch_norm, phase):
+    def __init__(self, binary, first, last, xnor, n_hidden, keep_prob, x, batch_norm, phase):
         self.binary = binary
         self.xnor = xnor
         self.n_hidden = n_hidden
         self.keep_prob = keep_prob
         self.input = x
         self.G = tf.get_default_graph()
-        self.dense_layers(batch_norm, last, phase)
+        self.dense_layers(batch_norm, first, last, phase)
 
     def init_layer(self, name, n_inputs, n_outputs):
 
@@ -39,21 +39,34 @@ class BinaryNet:
             #E = tf.reduce_mean(tf.abs(x))
             # return tf.sign(x) * E
 
-    def dense_layers(self, batch_norm, last, phase):
+    def dense_layers(self, batch_norm, first, last, phase):
 
         if self.binary:
 
             with tf.name_scope('fc1_b') as scope:
 
-                # don't quantize weights in first layer
                 W_1 = self.init_layer('W_1', 784, self.n_hidden)
                 self.w1_summ = tf.summary.histogram(name='W1_summ', values=W_1)
 
-                fc1 = tf.nn.dropout(tf.matmul(self.input, W_1), self.keep_prob)
-                fc1 = tf.contrib.layers.batch_norm(
-                    fc1, decay=0.9, center=False, scale=False, epsilon=BN_EPSILON, is_training=phase)
+                # optionally quantize weights in first layer
+                if first:
+                    self.W_1_p = tf.reduce_sum(1.0 - tf.square(W_1))
+                    Wb_1 = self.quantize(W_1)
+                    fc1 = tf.nn.dropout(tf.matmul(self.input, Wb_1), self.keep_prob)
+                else:
+                    fc1 = tf.nn.dropout(tf.matmul(self.input, W_1), self.keep_prob)
+
+                if batch_norm:
+                    fc1 = tf.contrib.layers.batch_norm(
+                        fc1, decay=0.9, center=False, scale=False, epsilon=BN_EPSILON, is_training=phase)
+
+                if first:
+                    fc1_scale_factor = tf.Variable(0.05, trainable=True, name='fc1_scale_factor')
+                    self.fc1_scale_factor_summary = tf.summary.scalar("fc1 scale factor", fc1_scale_factor)
+                    fc1 = fc1 * fc1_scale_factor
+                
                 self.a1_fp_summ = tf.summary.histogram(
-                    name='a1_fp_summ', values=fc1)
+                        name='a1_fp_summ', values=fc1)
                 fc1 = self.quantize(fc1)
                 self.a1_bin_summ = tf.summary.histogram(
                     name='a1_bin_summ', values=fc1)
@@ -73,8 +86,9 @@ class BinaryNet:
                 else:
                     fc2 = tf.nn.dropout(tf.matmul(fc1, Wb_2), self.keep_prob)
 
-                fc2 = tf.contrib.layers.batch_norm(
-                    fc2, decay=0.9, center=False, scale=False, epsilon=BN_EPSILON, is_training=phase)
+                if batch_norm:
+                    fc2 = tf.contrib.layers.batch_norm(
+                        fc2, decay=0.9, center=False, scale=False, epsilon=BN_EPSILON, is_training=phase)
                 self.a2_fp_summ = tf.summary.histogram(
                     name='a2_fp_summ', values=fc2)
                 fc2 = self.quantize(fc2)
@@ -95,8 +109,9 @@ class BinaryNet:
                 else:
                     fc3 = tf.nn.dropout(tf.matmul(fc2, Wb_3), self.keep_prob)
 
-                fc3 = tf.contrib.layers.batch_norm(
-                    fc3, decay=0.9, center=False, scale=False, epsilon=BN_EPSILON, is_training=phase)
+                if batch_norm:
+                    fc3 = tf.contrib.layers.batch_norm(
+                        fc3, decay=0.9, center=False, scale=False, epsilon=BN_EPSILON, is_training=phase)
                 
                 # only quantize input to last layer if received 'last' flag
                 if last:
@@ -104,18 +119,18 @@ class BinaryNet:
                     name='a3_bin_summ'
                 else:
                     name='a3_fp_summ'
-                    
+
                 self.a3_summ = tf.summary.histogram(name=name, values=fc3)
 
             with tf.name_scope('fcout_b') as scope:
 
                 W_out = self.init_layer('W_out', self.n_hidden, 10)
-                self.W_out_p = tf.reduce_sum(1.0 - tf.square(W_out))
                 self.wout_summ = tf.summary.histogram(
                     name='Wout_summ', values=W_out)
 
                 if last:
                     Wb_out = self.quantize(W_out)
+                    self.W_out_p = tf.reduce_sum(1.0 - tf.square(W_out))
                     self.wbout_summ = tf.summary.histogram(
                         name='Wbout_summ', values=Wb_out)
 
@@ -132,6 +147,7 @@ class BinaryNet:
 
                 self.aout_summ = tf.summary.histogram(
                     name='aout_summ', values=self.output)
+        # fp32 net                
         else:
 
             with tf.name_scope('fc1_fp') as scope:
@@ -143,6 +159,8 @@ class BinaryNet:
                     fc1 = tf.contrib.layers.batch_norm(
                         fc1, center=False, scale=False, epsilon=BN_EPSILON, is_training=phase)
                 fc1 = tf.nn.dropout(tf.nn.relu(fc1), self.keep_prob)
+                self.a1_fp_summ = tf.summary.histogram(
+                        name='a1_fp_summ', values=fc1)
 
             with tf.name_scope('fc2_fp') as scope:
 
@@ -153,6 +171,8 @@ class BinaryNet:
                     fc2 = tf.contrib.layers.batch_norm(
                         fc2, center=False, scale=False, epsilon=BN_EPSILON, is_training=phase)
                 fc2 = tf.nn.dropout(tf.nn.relu(fc2), self.keep_prob)
+                self.a2_fp_summ = tf.summary.histogram(
+                        name='a2_fp_summ', values=fc2)
 
             with tf.name_scope('fc3_fp') as scope:
 
@@ -163,6 +183,8 @@ class BinaryNet:
                     fc3 = tf.contrib.layers.batch_norm(
                         fc3, center=False, scale=False, epsilon=BN_EPSILON, is_training=phase)
                 fc3 = tf.nn.dropout(tf.nn.relu(fc3), self.keep_prob)
+                self.a3_fp_summ = tf.summary.histogram(
+                        name='a3_fp_summ', values=fc3)
 
             with tf.name_scope('fcout_fp') as scope:
 
@@ -170,6 +192,8 @@ class BinaryNet:
                 self.wout_summ = tf.summary.histogram(
                     name='Wout_summ', values=W_out)
                 self.output = tf.matmul(fc3, W_out)
+                self.aout_summ = tf.summary.histogram(
+                    name='aout_summ', values=self.output)
                 '''
                 if batch_norm:
                     self.output = tf.contrib.layers.batch_norm(

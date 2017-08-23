@@ -22,7 +22,7 @@ def create_dir_if_not_exists(dir):
 
 def handle_args(args):
 
-    binary = last = xnor = batch_norm = False
+    binary = first = last = xnor = batch_norm = False
     log_path = ''
 
     # handle command line args
@@ -34,6 +34,14 @@ def handle_args(args):
         # only binarize last layer if received binary flag
         if args.last:
             last = True
+        if args.first:
+            first = True
+        
+        if first and last:
+            sub_1 = '/bin_all/'
+        elif first and not last:
+            sub_1 = '/bin_first/'
+        elif last and not first:
             sub_1 = '/bin_last/'
         else:
             sub_1 = '/bin/'
@@ -71,4 +79,4 @@ def handle_args(args):
             log_path += '/' + args.extra
         log_path = create_dir_if_not_exists(log_path)
 
-    return log_path, binary, last, xnor, batch_norm
+    return log_path, binary, first, last, xnor, batch_norm
